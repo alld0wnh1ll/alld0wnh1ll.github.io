@@ -36,41 +36,6 @@
         "Lock"
       ]
     },
-    "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\MyStakingPool.sol": {
-      "lastModificationDate": 1763664963670,
-      "contentHash": "562b7dd22467ddfff720282b06c1d49b",
-      "sourceName": "contracts/MyStakingPool.sol",
-      "solcConfig": {
-        "version": "0.8.19",
-        "settings": {
-          "optimizer": {
-            "enabled": false,
-            "runs": 200
-          },
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [],
-      "versionPragmas": [
-        "^0.8.19"
-      ],
-      "artifacts": [
-        "MyStakingPool"
-      ]
-    },
     "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\PoS.sol": {
       "lastModificationDate": 1765394464185,
       "contentHash": "61b1df9875c0466ee88812ee7439ef4b",
@@ -139,6 +104,181 @@
       ],
       "artifacts": [
         "SimpleStorage"
+      ]
+    },
+    "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\student\\ClassroomVote_084348.sol": {
+      "lastModificationDate": 1770315088096,
+      "contentHash": "bff083f6002502030b4c3e8abb810d92",
+      "sourceName": "contracts/student/ClassroomVote_084348.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.19"
+      ],
+      "artifacts": [
+        "ClassroomVote"
+      ]
+    },
+    "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\student\\ClassroomVote_413789.sol": {
+      "lastModificationDate": 1770314415711,
+      "contentHash": "bff083f6002502030b4c3e8abb810d92",
+      "sourceName": "contracts/student/ClassroomVote_413789.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.19"
+      ],
+      "artifacts": [
+        "ClassroomVote"
+      ]
+    },
+    "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\student\\ClassroomVote_768160.sol": {
+      "lastModificationDate": 1770313771037,
+      "contentHash": "bff083f6002502030b4c3e8abb810d92",
+      "sourceName": "contracts/student/ClassroomVote_768160.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.19"
+      ],
+      "artifacts": [
+        "ClassroomVote"
+      ]
+    },
+    "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\student\\HouseSale_102944.sol": {
+      "lastModificationDate": 1770734105499,
+      "contentHash": "5fbb11b429bf6722877eab8d623fb07e",
+      "sourceName": "contracts/student/HouseSale_102944.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.19"
+      ],
+      "artifacts": [
+        "HouseSale"
+      ]
+    },
+    "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\student\\HouseSale_102945.sol": {
+      "lastModificationDate": 1770734904139,
+      "contentHash": "5fbb11b429bf6722877eab8d623fb07e",
+      "sourceName": "contracts/student/HouseSale_102945.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.19"
+      ],
+      "artifacts": [
+        "HouseSale"
       ]
     },
     "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\student\\HouseSale_596405.sol": {
@@ -211,10 +351,10 @@
         "HouseSale"
       ]
     },
-    "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\student\\ClassroomVote_768160.sol": {
-      "lastModificationDate": 1770313771037,
-      "contentHash": "bff083f6002502030b4c3e8abb810d92",
-      "sourceName": "contracts/student/ClassroomVote_768160.sol",
+    "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\SimpleFT.sol": {
+      "lastModificationDate": 1773089208137,
+      "contentHash": "96945b0b977988f4b44c1295395bb8dc",
+      "sourceName": "contracts/SimpleFT.sol",
       "solcConfig": {
         "version": "0.8.19",
         "settings": {
@@ -243,13 +383,13 @@
         "^0.8.19"
       ],
       "artifacts": [
-        "ClassroomVote"
+        "SimpleFT"
       ]
     },
-    "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\student\\ClassroomVote_413789.sol": {
-      "lastModificationDate": 1770314415711,
-      "contentHash": "bff083f6002502030b4c3e8abb810d92",
-      "sourceName": "contracts/student/ClassroomVote_413789.sol",
+    "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\SimpleNFT.sol": {
+      "lastModificationDate": 1773089208136,
+      "contentHash": "ef6b714226e6eb8a5f6ffaa4f76cf0e4",
+      "sourceName": "contracts/SimpleNFT.sol",
       "solcConfig": {
         "version": "0.8.19",
         "settings": {
@@ -278,42 +418,7 @@
         "^0.8.19"
       ],
       "artifacts": [
-        "ClassroomVote"
-      ]
-    },
-    "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\student\\ClassroomVote_084348.sol": {
-      "lastModificationDate": 1770315088096,
-      "contentHash": "bff083f6002502030b4c3e8abb810d92",
-      "sourceName": "contracts/student/ClassroomVote_084348.sol",
-      "solcConfig": {
-        "version": "0.8.19",
-        "settings": {
-          "optimizer": {
-            "enabled": false,
-            "runs": 200
-          },
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [],
-      "versionPragmas": [
-        "^0.8.19"
-      ],
-      "artifacts": [
-        "ClassroomVote"
+        "SimpleNFT"
       ]
     }
   }

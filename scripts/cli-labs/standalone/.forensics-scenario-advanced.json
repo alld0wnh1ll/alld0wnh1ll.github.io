@@ -1,0 +1,180 @@
+{
+  "victimA": {
+    "address": "0xE73224Fa59486d09d6D1494d7a4e6D745b665e86",
+    "privateKey": "0x394c0884d23093a5954825201cc797db419f3eea85d0ef0e96e5efeb163ff653",
+    "role": "Victim A - TechStart Inc",
+    "ransomAmount": "3"
+  },
+  "victimB": {
+    "address": "0x10D60b5e0c3ff226b4A94D1D742d7dE7Cd9B4ab3",
+    "privateKey": "0x42389708cd454813382571c56950647521f915c005a04215b7d1bee3e5933158",
+    "role": "Victim B - MedData Corp",
+    "ransomAmount": "4"
+  },
+  "victimC": {
+    "address": "0xD5DBe3a700CB73e33cCc25C16CBc736b53765f91",
+    "privateKey": "0x0a0b3b7cb3278e1991bab10b119f7281c233d78baa08db4c2aeb5783b57721d5",
+    "role": "Victim C - RetailPlus LLC",
+    "ransomAmount": "2.5"
+  },
+  "attacker1": {
+    "address": "0x7f9fc67836876F24d794aa1FCDE22F059E4ea231",
+    "privateKey": "0xe07d74202a3d23fdaeafbbaabc91eedf1b9692944c946fa2aed9fab8d92dff9b",
+    "role": "Attacker Wallet 1"
+  },
+  "attacker2": {
+    "address": "0x6Aa272B1066707Ccb5bD2616D05f44F607269f6D",
+    "privateKey": "0x61f5add937066ae381095dbe56e9d240398a21c8d3b88bdff73f90515e8b36c7",
+    "role": "Attacker Wallet 2"
+  },
+  "attacker3": {
+    "address": "0x5020700AcA41917c3D17ee9308EB5137C07d8364",
+    "privateKey": "0x8ad81b593b2a32d3438dc8dfc079942aa6fa1dddf8bca00f1fd95d8cca53ff8f",
+    "role": "Attacker Wallet 3"
+  },
+  "tumbler1a": {
+    "address": "0x70AE0e9a0f204Af1541e195B197781462d94c8f0",
+    "privateKey": "0xb47c5fb55b9aad6074c6cfdfcec642b290e24c50713f62947bb494f74ded6416",
+    "role": "Tumbler Layer 1a"
+  },
+  "tumbler1b": {
+    "address": "0xC18e4D3F95dbd108deA3Ba24Aa11D32BAbe6fB0F",
+    "privateKey": "0xcba7c668498676e51d1bd25775be9c80d952a424c2a800c296155fb3bf1d65a4",
+    "role": "Tumbler Layer 1b"
+  },
+  "tumbler1c": {
+    "address": "0xD06F9149AC6B2Dad3eE0C444D08F555c3b5f0131",
+    "privateKey": "0xe3a6cf654911c5dbef60897fef0cb923ca42e54c3b94f0fde140fb92f748b535",
+    "role": "Tumbler Layer 1c"
+  },
+  "tumbler1d": {
+    "address": "0xfFa4127f610892C7504fEd99Faa43e6819094BE0",
+    "privateKey": "0x5757c4d318f49e2858cdb412d8313f538be948c51cb3c794faebe2d6d2814d98",
+    "role": "Tumbler Layer 1d"
+  },
+  "tumbler2a": {
+    "address": "0x5fc53b008D5CdCd24e1377202107feca559711b1",
+    "privateKey": "0xfeef27c66057edb2308f40ac5ea282625859aac38e6d3b1711b8122a3de983f8",
+    "role": "Tumbler Layer 2a"
+  },
+  "tumbler2b": {
+    "address": "0xbF9C4Cef9562e85bf7BB0F1EAb2BFa0D2501aCEd",
+    "privateKey": "0xd0d114cf85324f8abc67d9e3d254bb7dd15d46967059b98a01fda3ae60f54321",
+    "role": "Tumbler Layer 2b"
+  },
+  "consolidator": {
+    "address": "0x0c858c91048Ce3609F4CECE2d896611E906B7980",
+    "privateKey": "0x2883779e4997def47ae659e2ded4d3ac5dd42c044c3188dfd3110d29e10ad350",
+    "role": "Consolidator"
+  },
+  "finalWallet": {
+    "address": "0x17DFc0E2f2C276A1152219Fc3BeaE4799F6f4D0f",
+    "privateKey": "0xbdce7045fb3fc1d4845649d296fc97646e12b61bff0be235a3da735c172539ba",
+    "role": "Final Cash-out Wallet"
+  },
+  "transactions": [
+    {
+      "step": "Ransom A",
+      "from": "0xE73224Fa59486d09d6D1494d7a4e6D745b665e86",
+      "to": "0x7f9fc67836876F24d794aa1FCDE22F059E4ea231",
+      "value": "3",
+      "block": 41
+    },
+    {
+      "step": "Ransom B",
+      "from": "0x10D60b5e0c3ff226b4A94D1D742d7dE7Cd9B4ab3",
+      "to": "0x6Aa272B1066707Ccb5bD2616D05f44F607269f6D",
+      "value": "4",
+      "block": 43
+    },
+    {
+      "step": "Ransom C",
+      "from": "0xD5DBe3a700CB73e33cCc25C16CBc736b53765f91",
+      "to": "0x5020700AcA41917c3D17ee9308EB5137C07d8364",
+      "value": "2.5",
+      "block": 45
+    },
+    {
+      "step": "Split A1",
+      "from": "0x7f9fc67836876F24d794aa1FCDE22F059E4ea231",
+      "to": "0x70AE0e9a0f204Af1541e195B197781462d94c8f0",
+      "value": "1.5",
+      "block": 47
+    },
+    {
+      "step": "Split A2",
+      "from": "0x7f9fc67836876F24d794aa1FCDE22F059E4ea231",
+      "to": "0xC18e4D3F95dbd108deA3Ba24Aa11D32BAbe6fB0F",
+      "value": "1.45",
+      "block": 48
+    },
+    {
+      "step": "Forward B",
+      "from": "0x6Aa272B1066707Ccb5bD2616D05f44F607269f6D",
+      "to": "0xD06F9149AC6B2Dad3eE0C444D08F555c3b5f0131",
+      "value": "3.95",
+      "block": 50
+    },
+    {
+      "step": "Forward C",
+      "from": "0x5020700AcA41917c3D17ee9308EB5137C07d8364",
+      "to": "0xfFa4127f610892C7504fEd99Faa43e6819094BE0",
+      "value": "2.45",
+      "block": 52
+    },
+    {
+      "step": "1a->2a",
+      "from": "0x70AE0e9a0f204Af1541e195B197781462d94c8f0",
+      "to": "0x5fc53b008D5CdCd24e1377202107feca559711b1",
+      "value": "1.45",
+      "block": 54
+    },
+    {
+      "step": "1b->2a",
+      "from": "0xC18e4D3F95dbd108deA3Ba24Aa11D32BAbe6fB0F",
+      "to": "0x5fc53b008D5CdCd24e1377202107feca559711b1",
+      "value": "1.40",
+      "block": 55
+    },
+    {
+      "step": "1c->2b",
+      "from": "0xD06F9149AC6B2Dad3eE0C444D08F555c3b5f0131",
+      "to": "0xbF9C4Cef9562e85bf7BB0F1EAb2BFa0D2501aCEd",
+      "value": "3.90",
+      "block": 57
+    },
+    {
+      "step": "1d->2b",
+      "from": "0xfFa4127f610892C7504fEd99Faa43e6819094BE0",
+      "to": "0xbF9C4Cef9562e85bf7BB0F1EAb2BFa0D2501aCEd",
+      "value": "2.40",
+      "block": 58
+    },
+    {
+      "step": "2a->Con",
+      "from": "0x5fc53b008D5CdCd24e1377202107feca559711b1",
+      "to": "0x0c858c91048Ce3609F4CECE2d896611E906B7980",
+      "value": "2.80",
+      "block": 60
+    },
+    {
+      "step": "2b->Con",
+      "from": "0xbF9C4Cef9562e85bf7BB0F1EAb2BFa0D2501aCEd",
+      "to": "0x0c858c91048Ce3609F4CECE2d896611E906B7980",
+      "value": "6.25",
+      "block": 61
+    },
+    {
+      "step": "Cash Out",
+      "from": "0x0c858c91048Ce3609F4CECE2d896611E906B7980",
+      "to": "0x17DFc0E2f2C276A1152219Fc3BeaE4799F6f4D0f",
+      "value": "9.00",
+      "block": 63
+    }
+  ],
+  "generatedAt": "2026-03-02T00:20:01.360Z",
+  "startBlock": 40,
+  "endBlock": 65,
+  "totalStolen": "9.5",
+  "totalRecovered": "9.00"
+}

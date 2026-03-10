@@ -53,6 +53,8 @@ docker-compose up --build
 
 Runs only the frontend, connecting to an instructor's blockchain.
 
+> **Important:** Students must set `INSTRUCTOR_RPC_URL` to the instructor's actual IP address (e.g., `http://192.168.1.100:8545`), **not** `localhost` or `127.0.0.1`. Using localhost will try to connect to the student's own machine, which won't have a blockchain running.
+
 ```bash
 # Set instructor's IP and run
 INSTRUCTOR_RPC_URL=http://<instructor-ip>:8545 docker-compose -f docker-compose.student.yml up --build
@@ -154,6 +156,95 @@ cd /app/scripts/cli-labs/standalone
 node interactive.js
 ```
 
+### Opening Multiple Shells
+
+Many labs require **two or more shells** (e.g., one for the lab, one for Hardhat console). Open separate terminal windows on your host machine and run the same command in each:
+
+**Terminal 1:**
+```bash
+docker-compose exec ethereum-trainer bash
+```
+
+**Terminal 2:**
+```bash
+docker-compose exec ethereum-trainer bash
+```
+
+Each command opens an independent shell inside the same container, sharing the same blockchain state.
+
+### Lab-Specific Setup
+
+#### Forensics Labs (Ransomware Investigation)
+
+The forensics labs require generating a scenario first:
+
+```bash
+# Enter container
+docker-compose exec ethereum-trainer bash
+
+# Generate the scenario (creates victim, attacker, tumblers)
+cd /app/scripts/cli-labs/standalone
+node forensics-setup.js           # Basic scenario
+# OR
+node forensics-setup-advanced.js  # Advanced multi-victim scenario
+
+# Run the lab
+node 6-ransomware-investigation.js   # Basic
+# OR
+node 7-ransomware-advanced.js        # Advanced
+```
+
+**Important:** The blockchain starts fresh in Docker. Victim addresses from previous (non-Docker) sessions won't exist. Always run the setup script first and use the addresses it generates.
+
+#### House Sale Lab (Multi-Party)
+
+For labs involving multiple roles (Admin, Seller, Buyer), each participant needs their own shell:
+
+**Admin Terminal:**
+```bash
+docker-compose exec ethereum-trainer bash
+npx hardhat console --network localhost
+```
+
+**Seller Terminal:**
+```bash
+docker-compose exec ethereum-trainer bash
+npx hardhat console --network localhost
+```
+
+**Buyer Terminal:**
+```bash
+docker-compose exec ethereum-trainer bash
+npx hardhat console --network localhost
+```
+
+See `docs/HOUSE_SALE_LAB.md` for complete instructions.
+
+#### Classroom Vote Lab
+
+```bash
+# Enter container
+docker-compose exec ethereum-trainer bash
+
+# Deploy via CLI
+cd /app/scripts/cli-labs/standalone
+node interactive.js
+# Select: 7. Contract Builder Lab → 6. Classroom Voting Demo
+
+# Or via Hardhat console
+npx hardhat console --network localhost
+```
+
+Dashboard available at: `http://localhost:5173/dashboard.html`
+
+### Path Reference
+
+| Local Path | Docker Path |
+|------------|-------------|
+| `scripts/cli-labs/standalone/` | `/app/scripts/cli-labs/standalone/` |
+| `contracts/student/` | `/app/contracts/student/` |
+| `docs/` | `/app/docs/` |
+
 ## Troubleshooting
 
 ### Container won't start
@@ -185,6 +276,22 @@ netsh advfirewall firewall add rule name="Ethereum Trainer Frontend" dir=in acti
 sudo ufw allow 8545
 sudo ufw allow 5173
 ```
+
+### "Transaction reverted" or "execution reverted (no data present)"
+
+If you see `Transaction reverted without a reason`, `require(false)`, or `Stake info error: execution reverted` in the logs or browser console, the frontend is calling a contract that doesn't match the expected PoS contract (e.g., wrong contract at that address or stale blockchain state).
+
+**Fix:**
+
+```bash
+# Stop and remove volumes (clears any persisted blockchain data)
+docker-compose down -v
+
+# Rebuild and start fresh
+docker-compose up --build
+```
+
+Then clear your browser's localStorage for the app (or use an incognito window) so it fetches the fresh contract address from `/api/config.json`.
 
 ### Blockchain state lost after restart
 

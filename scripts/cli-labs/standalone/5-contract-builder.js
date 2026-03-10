@@ -85,6 +85,146 @@ let selectedAccount = TEST_ACCOUNTS[0];
 // ============================================================================
 
 const TEMPLATES = {
+  simpleFT: {
+    name: 'Simple Fungible Token (Token Concepts)',
+    description: 'Minimal FT for learning: mint, transfer, balanceOf, totalSupply. Teaches interchangeable tokens.',
+    icon: '🪙',
+    fields: [
+      { name: 'tokenName', prompt: 'Token name', type: 'string', default: 'LearningToken' },
+      { name: 'symbol', prompt: 'Token symbol', type: 'string', default: 'LTK' },
+    ],
+    generateContract: (params) => `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+/**
+ * @title SimpleFT
+ * @dev Minimal Fungible Token for teaching FT vs NFT concepts.
+ * Demonstrates: balanceOf, totalSupply, mint, transfer.
+ */
+contract SimpleFT {
+    string public name;
+    string public symbol;
+    uint256 public totalSupply;
+    
+    address public minter;
+    mapping(address => uint256) public balanceOf;
+    
+    event Transfer(address indexed from, address indexed to, uint256 amount);
+    event Mint(address indexed to, uint256 amount);
+    
+    modifier onlyMinter() {
+        require(msg.sender == minter, "Only minter can call");
+        _;
+    }
+    
+    constructor(string memory _name, string memory _symbol) {
+        name = _name;
+        symbol = _symbol;
+        minter = msg.sender;
+    }
+    
+    function mint(address to, uint256 amount) external onlyMinter {
+        require(to != address(0), "Invalid address");
+        balanceOf[to] += amount;
+        totalSupply += amount;
+        emit Mint(to, amount);
+        emit Transfer(address(0), to, amount);
+    }
+    
+    function transfer(address to, uint256 amount) external {
+        require(to != address(0), "Invalid address");
+        require(balanceOf[msg.sender] >= amount, "Insufficient balance");
+        
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        emit Transfer(msg.sender, to, amount);
+    }
+}
+`,
+    constructorArgs: (params) => [params.tokenName, params.symbol],
+  },
+
+  simpleNFT: {
+    name: 'Simple NFT (Token Concepts)',
+    description: 'Minimal NFT for learning: mint, transfer, ownerOf. Each token has a unique ID. Teaches non-fungible tokens.',
+    icon: '🎟️',
+    fields: [
+      { name: 'tokenName', prompt: 'Token name', type: 'string', default: 'EventTicket' },
+      { name: 'symbol', prompt: 'Token symbol', type: 'string', default: 'TKT' },
+    ],
+    generateContract: (params) => `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+/**
+ * @title SimpleNFT
+ * @dev Minimal Non-Fungible Token for teaching FT vs NFT concepts.
+ * Demonstrates: ownerOf, mint, transfer. Each token has a unique ID.
+ */
+contract SimpleNFT {
+    string public name;
+    string public symbol;
+    uint256 public nextTokenId;
+
+    mapping(uint256 => address) public ownerOf;
+    mapping(address => uint256) public balanceOf;
+
+    event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+    event Mint(address indexed to, uint256 indexed tokenId);
+
+    address public minter;
+
+    modifier onlyMinter() {
+        require(msg.sender == minter, "Only minter can call");
+        _;
+    }
+
+    constructor(string memory _name, string memory _symbol) {
+        name = _name;
+        symbol = _symbol;
+        minter = msg.sender;
+        nextTokenId = 1;
+    }
+
+    function mint(address to) external onlyMinter returns (uint256) {
+        require(to != address(0), "Invalid address");
+        uint256 tokenId = nextTokenId++;
+        ownerOf[tokenId] = to;
+        balanceOf[to]++;
+        emit Mint(to, tokenId);
+        emit Transfer(address(0), to, tokenId);
+        return tokenId;
+    }
+
+    function mintBatch(address to, uint256 count) external onlyMinter returns (uint256[] memory) {
+        require(to != address(0), "Invalid address");
+        require(count > 0 && count <= 10, "Count 1-10");
+        uint256[] memory ids = new uint256[](count);
+        for (uint256 i = 0; i < count; i++) {
+            uint256 tokenId = nextTokenId++;
+            ownerOf[tokenId] = to;
+            balanceOf[to]++;
+            ids[i] = tokenId;
+            emit Mint(to, tokenId);
+            emit Transfer(address(0), to, tokenId);
+        }
+        return ids;
+    }
+
+    function transfer(address to, uint256 tokenId) external {
+        require(ownerOf[tokenId] == msg.sender, "Not your token");
+        require(to != address(0), "Invalid recipient");
+
+        ownerOf[tokenId] = to;
+        balanceOf[msg.sender]--;
+        balanceOf[to]++;
+
+        emit Transfer(msg.sender, to, tokenId);
+    }
+}
+`,
+    constructorArgs: (params) => [params.tokenName, params.symbol],
+  },
+
   houseSale: {
     name: 'House/Property Sale',
     description: 'Escrow contract for real estate transactions with buyer/seller roles, inspection period, and secure fund transfer.',
@@ -466,8 +606,8 @@ contract VehicleTitle {
   },
 
   eventTickets: {
-    name: 'Event Tickets',
-    description: 'Ticket minting and management with max supply, transfers, and check-in verification.',
+    name: 'Event Tickets (Token Concepts - NFT)',
+    description: 'NFT example: unique ticket IDs, ownerOf, transferTicket. Teaches non-fungible tokens.',
     icon: '🎟️',
     fields: [
       { name: 'eventName', prompt: 'Event name', type: 'string', default: 'Blockchain Conference 2026' },
@@ -1770,10 +1910,32 @@ async function viewDeployments() {
     return;
   }
   
-  const deployments = JSON.parse(fs.readFileSync(deploymentsFile, 'utf-8'));
+  const allDeployments = JSON.parse(fs.readFileSync(deploymentsFile, 'utf-8'));
+  
+  if (allDeployments.length === 0) {
+    console.log(color('yellow', 'No deployments found.'));
+    return;
+  }
+  
+  // Filter to only contracts that exist on chain (excludes stale entries after chain reset)
+  console.log(color('dim', '  Checking which contracts exist on chain...'));
+  const existenceChecks = await Promise.all(
+    allDeployments.map(async (d) => {
+      const code = await provider.getCode(d.address);
+      return { deployment: d, exists: !!code && code !== '0x' };
+    })
+  );
+  const deployments = existenceChecks.filter((c) => c.exists).map((c) => c.deployment);
+  const staleCount = allDeployments.length - deployments.length;
+  
+  if (staleCount > 0) {
+    console.log(color('dim', `  (${staleCount} deployment(s) no longer on chain—hidden)\n`));
+  }
   
   if (deployments.length === 0) {
-    console.log(color('yellow', 'No deployments found.'));
+    console.log(color('yellow', '\nNo accessible contracts found.'));
+    console.log(color('dim', '\n  All recorded deployments are no longer on this chain (e.g. node was restarted).'));
+    console.log(color('cyan', '  Build and deploy a new contract (option 1) to get started.'));
     return;
   }
   
@@ -1813,6 +1975,19 @@ async function viewDeployments() {
   }
   
   const artifact = JSON.parse(fs.readFileSync(path.join(artifactPath, files[0]), 'utf-8'));
+  
+  // Verify contract exists at address (catches chain reset or wrong network)
+  const code = await provider.getCode(deployment.address);
+  if (!code || code === '0x') {
+    console.log(color('red', '\n✗ No contract found at this address.'));
+    console.log(color('yellow', '\n  This usually means:'));
+    console.log('    • The blockchain node was restarted (local chain state was reset)');
+    console.log('    • You\'re connected to a different RPC than where it was deployed');
+    console.log(color('cyan', '\n  Fix: Build and deploy the contract again (option 1), or connect to the'));
+    console.log('  same RPC where it was originally deployed.');
+    return;
+  }
+  
   const contract = new ethers.Contract(deployment.address, artifact.abi, wallet);
   
   await interactWithContract(contract, artifact.abi);

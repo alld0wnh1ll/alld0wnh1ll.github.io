@@ -75,10 +75,20 @@ if [ "$MODE" = "instructor" ]; then
         sleep 2
     done
     
-    # Deploy contracts
+    # Brief pause to ensure node is fully ready for deployments
+    sleep 2
+    
+    # Deploy contracts (must succeed or container exits)
     echo ""
     echo -e "${BLUE}📜 Deploying smart contracts...${NC}"
-    npx hardhat run scripts/deploy.js --network localhost
+    if ! npx hardhat run scripts/deploy.js --network localhost; then
+        echo ""
+        echo -e "${RED}✗ Contract deployment failed!${NC}"
+        echo "  If you see 'Transaction reverted' or 'require(false)', try:"
+        echo "  1. docker-compose down -v   (removes persisted data)"
+        echo "  2. docker-compose up --build"
+        exit 1
+    fi
     
     # Read and export contract address
     if [ -f "CONTRACT_ADDRESS.txt" ]; then

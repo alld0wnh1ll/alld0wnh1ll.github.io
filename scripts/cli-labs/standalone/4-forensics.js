@@ -467,6 +467,8 @@ async function main() {
     console.log('  4. Event Investigation');
     console.log('  5. Build Investigation Report');
     console.log('  6. Run All Exercises');
+    console.log(color('cyan', '\n  Advanced:'));
+    console.log('  7. Ransomware Investigation Lab (run: node 6-ransomware-investigation.js)');
     console.log('  0. Exit');
     
     const choice = await ask('\nSelect exercise: ');
@@ -483,6 +485,16 @@ async function main() {
         await exercise3_BlockAnalysis(); await pause();
         await exercise4_EventInvestigation(); await pause();
         await exercise5_InvestigationReport(); await pause();
+        break;
+      case '7':
+        console.log(color('cyan', '\n📋 Ransomware Investigation Lab\n'));
+        console.log('This is an advanced forensics lab where you trace a ransomware');
+        console.log('payment through multiple tumbler addresses.\n');
+        console.log('To run this lab:');
+        console.log('  1. First run the setup script: node forensics-setup.js');
+        console.log('  2. Then start the investigation: node 6-ransomware-investigation.js');
+        console.log('\nOr from the interactive menu (npm start), select option 11.');
+        await pause();
         break;
       case '0':
         console.log(color('cyan', '\n✓ Lab complete! You\'ve learned blockchain forensics basics.\n'));

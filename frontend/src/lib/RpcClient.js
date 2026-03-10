@@ -12,8 +12,8 @@
 
 import { ethers } from 'ethers';
 
-// CLASSROOM ONLY - Account #0 (public test key)
-// This key is publicly known and used only for test environments
+// Account 0 = deployer = bank/faucet (Hardhat's first test account).
+// Same address deploys the PoS contract and sends test ETH to students.
 const BANK_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
 class RpcClient {

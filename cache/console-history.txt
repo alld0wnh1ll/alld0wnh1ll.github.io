@@ -1,49 +1,549 @@
+  }
+    }
+      })
+        }
+          console.log("Block:", i, "To:", tx.to, "Value:", ethers.formatEther(tx.value), "ETH")
+        if (tx.from.toLowerCase() === victim.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+ for (let i = 0; i <= latest; i++) {
+let victim = "0xe782f57b3Bd9aB3E53CFa5e65F81462Ca777330A"
+et victim = "0xe782f57b3Bd9aB3E53CFa5e65F81462Ca777330A"
+let latest = await ethers.provider.getBlockNumber()
+.exit
+let latest = await ethers.provider.getBlockNumber()
+  }
+    }
+      })
+        }
+          console.log("Block:", i, "To:", tx.to, "Value:", ethers.formatEther(tx.value), "ETH")
+        if (tx.from.toLowerCase() === victim.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+  for (let i = 0; i <= latest; i++) {
+ let victim = "0xe782f57b3Bd9aB3E53CFa5e65F81462Ca777330A"
+  }
+    }
+      })
+        }
+          console.log("Block:", i, "To:", tx.to, "Value:", ethers.formatEther(tx.value), "ETH")
+        if (tx.from.toLowerCase() === victim.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+for (let i = 0; i <= latest; i++) {
+let latest = await ethers.provider.getBlockNumber()
+.exit
+  console.log(ethers.formatEther(balance), "ETH")
+  let balance = await ethers.provider.getBalance("0x17DFc0E2f2C276A1152219Fc3BeaE4799F6f4D0f")
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === attackc.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+ for (let i = 0; i <= latest; i++) {
+attackc = "0x0c858c91048Ce3609F4CECE2d896611E906B7980"
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === attackc.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+ for (let i = 0; i <= latest; i++) {
+attackc = "0x5fc53b008D5CdCd24e1377202107feca559711b1"
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === attackc.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+ for (let i = 0; i <= latest; i++) {
+attackc = "0xbF9C4Cef9562e85bf7BB0F1EAb2BFa0D2501aCEd"
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === attackc.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+ for (let i = 0; i <= latest; i++) {
+attackc = "0xbF9C4Cef9562e85bf7BB0F1EAb2BFa0D2501aCEd"
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === attackc.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+ for (let i = 0; i <= latest; i++) {
+attackc = "0xfFa4127f610892C7504fEd99Faa43e6819094BE0"
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === attackc.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+ for (let i = 0; i <= latest; i++) {
+attackc = "0xD06F9149AC6B2Dad3eE0C444D08F555c3b5f0131"
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === attackc.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+ for (let i = 0; i <= latest; i++) {
+attackc = "0x70AE0e9a0f204Af1541e195B197781462d94c8f0 "
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === attackb.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+ for (let i = 0; i <= latest; i++) {
+attackb = "0xC18e4D3F95dbd108deA3Ba24Aa11D32BAbe6fB0F"
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === attackb.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+ for (let i = 0; i <= latest; i++) {
+attackb = "0x70AE0e9a0f204Af1541e195B197781462d94c8f0"
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === attacka.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+ for (let i = 0; i <= latest; i++) {
+attacka = "0x70AE0e9a0f204Af1541e195B197781462d94c8f0"
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === attackc.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+ for (let i = 0; i <= latest; i++) {
+attackc = "0x5020700AcA41917c3D17ee9308EB5137C07d8364"
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === attackb.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+ for (let i = 0; i <= latest; i++) {
+attackb = "0x6Aa272B1066707Ccb5bD2616D05f44F607269f6D"
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === attacka.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+ for (let i = 0; i <= latest; i++) {
+attacka = "0x7f9fc67836876F24d794aa1FCDE22F059E4ea231"
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === victimC.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+  for (let i = 0; i <= latest; i++) {
+let victimC = "0xD5DBe3a700CB73e33cCc25C16CBc736b53765f91"
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === victimB.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+  for (let i = 0; i <= latest; i++) {
+let victimA = "0xE73224Fa59486d09d6D1494d7a4e6D745b665e86"
+let victimB = "0x10D60b5e0c3ff226b4A94D1D742d7dE7Cd9B4ab3"
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === victimA.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+  for (let i = 0; i <= latest; i++) {
+let victimA = "0xE73224Fa59486d09d6D1494d7a4e6D745b665e86"
+ let latest = await ethers.provider.getBlockNumber()
+.exit
+  }
+    }
+      })
+        }
+          console.log("VictimA To:", tx.to, "Value:", ethers.formatEther(tx.value))
+        if (tx.from.toLowerCase() === victimA.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+  for (let i = 0; i <= latest; i++) {
+  let victimA = "0xE73224Fa59486d09d6D1494d7a4e6D745b665e86"
+  // Scan for Victim A
+  let latest = await ethers.provider.getBlockNumber()
+}
+  }
+    })
+      }
+        console.log("To:", tx.to, "Value:", ethers.formatEther(tx.value), "ETH")
+      if (tx.from.toLowerCase() === to4.toLowerCase()) {
+    block.prefetchedTransactions.forEach(tx => {
+  if (block.prefetchedTransactions) {
+  let block = await ethers.provider.getBlock(i, true)
+for (let i = 0; i <= latest; i++) {
+let to4 = "0x2E8720225c6690F42401a52c3c8A1517B6fAd0A6"
+let to3 = "0x2E8720225c6690F42401a52c3c8A1517B6fAd0A6"
+}
+  }
+    })
+      }
+        console.log("To:", tx.to, "Value:", ethers.formatEther(tx.value), "ETH")
+      if (tx.from.toLowerCase() === to3.toLowerCase()) {
+    block.prefetchedTransactions.forEach(tx => {
+  if (block.prefetchedTransactions) {
+  let block = await ethers.provider.getBlock(i, true)
+for (let i = 0; i <= latest; i++) {
+let to3 = "0x7B0976dA5Fd4C66f7b1e51C8732F37E20004e4BD"
+}
+  }
+    })
+      }
+        console.log("To:", tx.to, "Value:", ethers.formatEther(tx.value), "ETH")
+      if (tx.from.toLowerCase() === to2.toLowerCase()) {
+    block.prefetchedTransactions.forEach(tx => {
+  if (block.prefetchedTransactions) {
+  let block = await ethers.provider.getBlock(i, true)
+for (let i = 0; i <= latest; i++) {
+}
+  }
+    })
+      }
+        console.log("To:", tx.to, "Value:", ethers.formatEther(tx.value), "ETH")
+      if (tx.from.toLowerCase() === to1.toLowerCase()) {
+    block.prefetchedTransactions.forEach(tx => {
+  if (block.prefetchedTransactions) {
+  let block = await ethers.provider.getBlock(i, true)
+for (let i = 0; i <= latest; i++) {
+...   }
+...     }
+...       })
+...         }
+...           console.log("To:", tx.to, "Value:", ethers.formatEther(tx.value), "ETH")
+...         if (tx.from.toLowerCase() === to1.toLowerCase()) {
+...       block.prefetchedTransactions.forEach(tx => {
+...     if (block.prefetchedTransactions) {
+...     let block = await ethers.provider.getBlock(i, true)
+for (let i = 0; i <= latest; i++) {
+let to2 = "0x6A2E6f57475CC705C5f4B4ed09480Ab6dCcc0BDF"
+let to1 = "0xA83a4Ee5e5b9c0c8BFB5362805D2f9A9da42A15b"
+  }
+    }
+      })
+        }
+          console.log("To:", tx.to, "Value:", ethers.formatEther(tx.value), "ETH")
+        if (tx.from.toLowerCase() === attacker.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+  for (let i = 0; i <= latest; i++) {
+ let attacker = "0xbbB30236038Cdd9f5fb0Cc4E488BEbDe85b46cEf"
+}
+  }
+    })
+      }
+        console.log("To:", tx.to, "Value:", ethers.formatEther(tx.value), "ETH")
+      if (tx.from.toLowerCase() === victim.toLowerCase()) {
+    block.prefetchedTransactions.forEach(tx => {
+  if (block.prefetchedTransactions) {
+  let block = await ethers.provider.getBlock(i, true)
+for (let i = 0; i <= latest; i++) {
+console.log(ethers.formatEther(balance), "ETH")
+let balance = await ethers.provider.getBalance("0xbbB30236038Cdd9f5fb0Cc4E488BEbDe85b46cEf")
+  }
+    }
+      })
+        }
+          console.log("Block:", i, "To:", tx.to, "Value:", ethers.formatEther(tx.value), "ETH")
+        if (tx.from.toLowerCase() === victim.toLowerCase()) {
+      block.prefetchedTransactions.forEach(tx => {
+    if (block.prefetchedTransactions) {
+    let block = await ethers.provider.getBlock(i, true)
+  for (let i = 0; i <= latest; i++) {
+let victim = "0xe782f57b3Bd9aB3E53CFa5e65F81462Ca777330A"
+  let latest = await ethers.provider.getBlockNumber()
+.exit
+console.log("Sale complete! State:", await houseJohn.currentState());  // Should be 3
+await confirmTx.wait();
+let confirmTx = await houseJohn.confirmTransfer();
+// Now John confirms the transfer
+console.log("John:", john.address);
+console.log("Seller:", await houseJohn.seller());
+// Verify John is the seller
+);
+  john  // John's wallet
+  johnAbi,
+  "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d",
+let houseJohn = new ethers.Contract(
+];
+  'function currentState() view returns (uint8)'
+  'function seller() view returns (address)',
+  'function confirmTransfer() external',
+const johnAbi = [
+console.log("Sale complete!");
+await confirmTx.wait();
+let confirmTx = await house.confirmTransfer();
+// John confirms transfer (use original 'house' connected to John)
+console.log("Contract balance:", ethers.formatEther(await checkHouse.getContractBalance()), "ETH");
+let checkHouse = new ethers.Contract("0xc6e7DF5E7b4f2A278906862b61205850344D4e7d", fullAbi, ethers.provider);
+];
+  'function currentState() view returns (uint8)'
+  'function getContractBalance() view returns (uint256)',
+const fullAbi = [
+console.log("Contract balance:", ethers.formatEther(await ethers.provider.getBalance("0xc6e7DF5E7b4f2A278906862b61205850344D4e7d")), "ETH");
+console.log("Balance paid! Contract balance:", ethers.formatEther(await houseMark.getContractBalance()), "ETH");
+await balanceTx.wait();
+let balanceTx = await houseMark.payBalance({ value: ethers.parseEther("9") });
+console.log("Inspection approved! State:", await houseMark.currentState());  // Should be 2
+await inspectTx.wait();
+let inspectTx = await houseMark.approveInspection();
+// Mark approves the inspection (state 1 → 2)
+console.log("Addresses match?", buyer.toLowerCase() === mark.address.toLowerCase());
+const buyer = await checkContract.buyer();
+// 4. Do they match?
+console.log("Mark's address:", mark.address);
+console.log("Contract's buyer:", await checkContract.buyer());
+let checkContract = new ethers.Contract("0xc6e7DF5E7b4f2A278906862b61205850344D4e7d", buyerAbi, ethers.provider);
+const buyerAbi = ['function buyer() view returns (address)'];
+// 2. Check who is the designated buyer
+console.log("Current state:", await houseMark.currentState());
+await depositTx.wait();
+let depositTx = await houseMark.payDeposit({ value: deposit });
+const deposit = await houseMark.depositAmount();
+);
+  mark  // Connected to Mark's wallet
+  markAbi, 
+  "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d",  // Your contract address
+let houseMark = new ethers.Contract(
+await tx1.wait();
+const tx1 = await house.payDeposit({ value: deposit });
+await tx1.wait();await tx1.wait();
+const tx2 = await house.approveInspection();
+console.log("Deposit required:", ethers.formatEther(deposit), "ETH");
+const deposit = await house.depositAmount();
+console.log("State after deposit:", await houseMark.currentState());  // Should be 1 (DepositPaid)
+await houseMark.payDeposit({ value: ethers.parseEther("1") });
+let houseMark = new ethers.Contract("0xc6e7DF5E7b4f2A278906862b61205850344D4e7d", markAbi, mark);
+];
+  'function currentState() view returns (uint8)'
+  'function payBalance() external payable',
+  'function approveInspection() external',
+  'function payDeposit() external payable',
+const markAbi = [
+);
+  ethers.provider
+  "0xba6b0dbc547c5101c8d5983132928f7645e182633c072e4a59ad1f8bbef42f8b",
+const mark = new ethers.Wallet(
+console.log("Current state:", state);  // Should be 2
+const state = await house.currentState();
+console.log("Contract balance:", ethers.formatEther(balance), "ETH");
+const balance = await house.getContractBalance();
+console.log("Contract balance:", ethers.formatEther(balance), "ETH");
+```
+console.log("Contract balance:", ethers.formatEther(balance), "ETH");
+const balance = await house.getContractBalance();
+```
+console.log("Am I the seller?", (await house.seller()).toLowerCase() === john.address.toLowerCase());
+console.log("Seller address:", await house.seller());
+let house = new ethers.Contract(contractAddress, abi, john);
+const contractAddress = " 0xc6e7DF5E7b4f2A278906862b61205850344D4e7d";
+];
+  'function getContractBalance() view returns (uint256)'
+  'function cancelSale(string) external',
+  'function confirmTransfer() external',
+  'function currentState() view returns (uint8)',
+  'function seller() view returns (address)',
+const abi = [
+console.log("John's balance:", ethers.formatEther(await ethers.provider.getBalance(john.address)), "ETH");
+);
+  ethers.provider
+  "0x53fb2401a358e21e57e3cfd4890b92f173bd0f17cd0b5d713709215ab8be02a3",  // John enters his private key
+const john = new ethers.Wallet(
+console.log("John's balance:", ethers.formatEther(await ethers.provider.getBalance(john.address)), "ETH");
+);
+  ethers.provider
+  "0x53fb2401a358e21e57e3cfd4890b92f173bd0f17cd0b5d713709215ab8be02a3",  // John enters his private key
+const john = new ethers.Wallet(
+);
+  ethers.provider
+  "0x53fb2401a358e21e57e3cfd4890b92f173bd0f17cd0b5d713709215ab8be02a3",  // John enters his private key
+console.log("Deposit Required:", ethers.formatEther(await house.depositAmount()), "ETH");
+console.log("Sale Price:", ethers.formatEther(await house.salePrice()), "ETH");
+console.log("Buyer (Mark):", await house.buyer());
+console.log("Seller (John):", await house.seller());
+console.log("Admin:", await house.admin());
+// Verify the setup
+console.log("========================================");
+console.log("Address:", contractAddress);
+console.log("CONTRACT DEPLOYED!");
+console.log("========================================");
+const contractAddress = await house.getAddress();
+await house.waitForDeployment();
+let house = await HouseSale.deploy(johnAddress, markAddress);
+const HouseSale = await ethers.getContractFactory("contracts/student/HouseSale_102945.sol:HouseSale");
+const markAddress = "0x5286CB56531106D1D7311d69f1aE75c0150A2b73";
+const johnAddress = "0x17230F945c7AfE77c02c62cc3274188635c53F1F";
+.exit
+console.log("New seller:", await house.seller());  // Should be John's address
+// Verify
+await house.setSeller(john.address);
+// Change the seller to John (only admin can do this)
+console.log("John's address:", john.address);
+);
+  ethers.provider
+  "0xe6e3175a1ac708ea71ee9168fb2a4118802a4438953177e2197073212c5d6f2a",
+const john = new ethers.Wallet(
 });
-  value: ethers.parseEther("1.0")
-  to: receiver.address,
-await sender.sendTransaction({
-const [sender, receiver] = await ethers.getSigners
-const [sender, receiver] = await ethers.getSigners();
-npx hardhat console --network localhost
-console.log(ethers.formatEther(balance), "ETH");
-const balance = await ethers.provider.getBalance("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+  value: ethers.parseEther("10")
+  to: john.address,
+await signers[0].sendTransaction({
+// Fund John if needed
+console.log("John's balance:", ethers.formatEther(await ethers.provider.getBalance(john.address)));
+// Check John's balance
+console.log("John's address:", john.address);
+);
+  ethers.provider
+  "0xe6e3175a1ac708ea71ee9168fb2a4118802a4438953177e2197073212c5d6f2a",
+const john = new ethers.Wallet(
+);
+  myWallet  // <-- Wallet object, not string
+  "contracts/student/HouseSale_102945.sol:HouseSale",
+const HouseSale = await ethers.getContractFactory(
+// Step 4: Now use it as the deployer
 });
-value: ethers.parseEther("1.0")
-to: receiver.address,
-to receiver.address,
-await sender.sendTransaction({
-const [sender, receiver] = await ethers.getSigners();
+  value: ethers.parseEther("10")
+  to: myWallet.address,
+await signers[0].sendTransaction({
+const signers = await ethers.getSigners();
+// Step 3: Fund it if needed (from test account)
+console.log("Balance:", ethers.formatEther(await ethers.provider.getBalance(myWallet.address)));
+console.log("Address:", myWallet.address);
+// Step 2: Check your balance (probably 0)
+);
+  ethers.provider
+  "0xba6b0dbc547c5101c8d5983132928f7645e182633c072e4a59ad1f8bbef42f8b",
+const myWallet = new ethers.Wallet(
+// Step 1: Create a wallet from your private key
+.exit
+);
+  myWallet  // <-- Wallet object, not string
+  "contracts/student/HouseSale_102945.sol:HouseSale",
+const HouseSale = await ethers.getContractFactory(
 });
-  value: ethers.parseEther("1.0")
-address,
-  to: receiver.
-const [sender, receiver] = await ethers.getSignersawait sender.sendTransaction({
-});
-value: ethers.parseEther("0.5")
-to: friend.address,
-await me.sendTransaction({
-const [me, friend] = await ethers.getSigners();
-console.log(ethers.formatEther(bal), "ETH");
-const bal = await ethers.provider.getBalance(me.address);
-const [me] = await ethers.getSigners();
-await ethers.provider.getBlockNumber();
-console.log(ethers.formatEther(balance), "ETH");
-const balance = await ethers.provider.getBalance("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
-npx hardhat run scripts/cli-labs/1-explore-blockchain.js --network localhost
-});
-value: ethers.parseEther("1.0")
-to: receiver.address,
-await sender.sendTransaction({
-});
-  to: receiver.addr  value: ethers.parseEther("1.0")
-await sender.sendTransaction({
-const [sender, receiver] = await ethers.getSigners
-});
-  value: ethers.parseEther("1.0")
-await sender.sendTransa  to: receiver.address,
-const [sender, receiver] = await ethers.getSigners();
-# In the console, run:
+  value: ethers.parseEther("10")
+  to: myWallet.address,
+await signers[0].sendTransaction({
+const signers = await ethers.getSigners();
+console.log("Balance:", ethers.formatEther(await ethers.provider.getBalance(myWallet.address)));
+console.log("Address:", myWallet.address);
+console.log("Balance:", ethers.formatEther(await ethers.provider.getBalance(myWallet.address)));
+console.log("Address:", myWallet.address);
+);
+  ethers.provider
+  "0xba6b0dbc547c5101c8d5983132928f7645e182633c072e4a59ad1f8bbef42f8b",
+const myWallet = new ethers.Wallet(
+const HouseSale = await ethers.getContractFactory("contracts/student/HouseSale_102945.sol:HouseSale", "0xba6b0dbc547c5101c8d5983132928f7645e182633c072e4a59ad1f8bbef42f8b" );
+const signers = await ethers.getSigners();
+.exit
+);
+  signers[3].address     // buyer
+  signers[2].address,    // seller
+const house = await HouseSale.deploy(
+const house = await HouseSale.deploy();
+);
+  signers[1]  // <-- This account will be the deployer
+  "contracts/student/HouseSale_102945.sol:HouseSale", 
+const HouseSale = await ethers.getContractFactory(
+signers.slice(0,5).forEach((s,i) => console.log(i, s.address));
+const signers = await ethers.getSigners();
+.exit
+console.log("Address:", await house.getAddress());
+await house.waitForDeployment();
+const house = await HouseSale.deploy();
+await house.currentState();
+const house = await HouseSale.attach("0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9");
+const HouseSale = await ethers.getContractFactory("contracts/student/HouseSale_102945.sol:HouseSale");
+// Pick the one you want (e.g. 102945):
+.exit
+const HouseSale = await ethers.getContractFactory("contracts/student/HouseSale_102945.sol:HouseSale");
+// Pick the one you want (e.g. 102945):
+const HouseSale = await ethers.getContractFactory("HouseSale");
+await contract.get();
+await contract.set(100);
+await contract.get();
+const contract = await SimpleStorage.attach("0x5FC8d32690cc91D4c39d9d3abcBD16989F875707");
+const SimpleStorage = await ethers.getContractFactory("SimpleStorage");
+.exit
+const contract = await SimpleStorage.attach("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+const contra ct = await SimpleStorage.attach("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+const SimpleStorage = await ethers.getContractFactory("SimpleStorage");
+const SimpleStorage = await ethers.getContractFactor("SimpleStorage");
+exit
 quit()
 quit
 exit
-npx hardhat compile
+```
+await contract.get();         // 100n
+await contract.set(100);      // sends transaction
+await contract.get();        // 0n (or whatever value)
+const contract = await SimpleStorage.attach("YOUR_CONTRACT_ADDRESS");
+const SimpleStorage = await ethers.getContractFactory("SimpleStorage");
+```javascript

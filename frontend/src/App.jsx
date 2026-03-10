@@ -1,20 +1,24 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ethers } from 'ethers'
-import { connectWallet, checkNodeStatus, getGuestWallet, getWalletInfo, importWallet, generateNewWallet, setWalletNickname } from './web3'
+import { connectWallet, checkNodeStatus, getGuestWallet, getWalletInfo, importWallet, generateNewWallet, setWalletNickname, getWalletList, setActiveWallet } from './web3'
 import PoSABI from './PoS.json'
 import { InstructorView } from './views/InstructorView'
 import { DiagnosticsView } from './views/DiagnosticsView'
+import { TokenConceptsView } from './views/TokenConceptsView'
+import { LABS, getLabById } from './constants/labs'
+import LabDetailView from './components/LabDetailView'
 import { blockchainSync } from './lib/BlockchainSync'
 import AccountManager from './components/AccountManager'
 import './index.css'
 
-// Default private key for Account #0 (The "Bank")
+// Account 0 = deployer = bank/faucet (Hardhat's first test account).
+// The deployer holds onlyInstructor privileges; the bank sends test ETH to students.
 const BANK_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
 // ============= KM METADATA & PROVENANCE =============
 const CONTENT_METADATA = {
-    version: "1.1.0",
-    lastUpdated: "December 2025",
+    version: "1.1.2",
+    lastUpdated: "January 10 2026",
     author: "Ethereum Lab Development Team",
     sources: [
         "Ethereum Foundation Documentation",
@@ -1569,8 +1573,74 @@ function MiniLab_AttackCost() {
 }
 
 // --- COMPONENT: CLI LABS VIEW ---
+
+const CLI_SECTIONS = [
+    { id: 'available-labs', title: 'Available Labs', category: 'Getting Started', keywords: ['labs', 'lab list', 'house sale', 'ransomware', 'voting', 'crowdfunding', 'tickets', 'vehicle', 'classroom', 'token'] },
+    { id: 'quick-start', title: 'Quick Start', category: 'Getting Started', keywords: ['install', 'npm', 'setup', 'connection', 'RPC', 'environment', 'configure', 'terminal', 'start', 'begin'] },
+    { id: 'menu-options', title: 'Menu Options', category: 'Getting Started', keywords: ['menu', 'options', 'interactive', 'CLI', 'list', 'commands', 'playground', 'builder', 'account'] },
+    { id: 'playground', title: 'Playground Mode', category: 'Getting Started', keywords: ['playground', 'console', 'JavaScript', 'REPL', 'analyst', 'interactive', 'JS', 'eval', 'help'] },
+    { id: 'deploy-share', title: 'Deploy & Share: Working as a Team', category: 'Smart Contracts', keywords: ['deploy', 'share', 'connect', 'classmate', 'team', 'address', 'collaborate', 'ABI', 'dashboard', 'other students'] },
+    { id: 'individual-labs', title: 'Individual Lab Scripts', category: 'Getting Started', keywords: ['lab', 'script', 'forensics', 'explore', 'transaction', 'blockchain basics', 'sign', 'interact'] },
+    { id: 'contract-builder', title: 'Smart Contract Builder', category: 'Smart Contracts', keywords: ['template', 'builder', 'house', 'voting', 'tickets', 'crowdfunding', 'vehicle', 'classroom', 'option 9'] },
+    { id: 'forensics-labs', title: 'Forensics Labs (Ransomware)', category: 'Forensics', keywords: ['ransomware', 'forensics-setup', '6-ransomware', '7-ransomware', 'investigation', 'scenario', 'tumbler', 'victim'] },
+    { id: 'walkthroughs', title: 'Forensics Walkthroughs', category: 'Forensics', keywords: ['address', 'trace', 'scan', 'blocks', 'investigation', 'events', 'suspicious', 'money flow', 'walkthrough', 'example'] },
+    { id: 'test-accounts', title: 'Test Accounts', category: 'Getting Started', keywords: ['accounts', 'addresses', 'private key', 'hardhat', 'default', '10000 ETH', 'shared'] },
+];
+
+const CLI_CATEGORIES = ['All', 'Getting Started', 'Smart Contracts', 'Forensics'];
+
 function CLILabsView() {
     const [copiedCommand, setCopiedCommand] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [activeCategory, setActiveCategory] = useState('All');
+    const [activeSection, setActiveSection] = useState(null);
+    const [selectedLabId, setSelectedLabId] = useState(null);
+    const sectionRefs = useRef({});
+    const navRef = useRef(null);
+
+    const selectedLab = selectedLabId ? getLabById(selectedLabId) : null;
+
+    // Filter sections based on search query and category
+    const filteredSections = CLI_SECTIONS.filter(section => {
+        const matchesCategory = activeCategory === 'All' || section.category === activeCategory;
+        if (!searchQuery.trim()) return matchesCategory;
+        const q = searchQuery.toLowerCase();
+        const matchesSearch = section.title.toLowerCase().includes(q) ||
+            section.keywords.some(k => k.toLowerCase().includes(q)) ||
+            section.category.toLowerCase().includes(q);
+        return matchesSearch && matchesCategory;
+    });
+
+    const visibleIds = new Set(filteredSections.map(s => s.id));
+
+    // Scroll to section
+    const scrollToSection = (id) => {
+        const el = sectionRefs.current[id];
+        if (el) {
+            const navHeight = navRef.current?.offsetHeight || 0;
+            const top = el.getBoundingClientRect().top + window.scrollY - navHeight - 16;
+            window.scrollTo({ top, behavior: 'smooth' });
+        }
+    };
+
+    // IntersectionObserver for active section highlighting
+    useEffect(() => {
+        const observers = [];
+        const ids = CLI_SECTIONS.map(s => s.id);
+        ids.forEach(id => {
+            const el = sectionRefs.current[id];
+            if (!el) return;
+            const observer = new IntersectionObserver(
+                ([entry]) => {
+                    if (entry.isIntersecting) setActiveSection(id);
+                },
+                { rootMargin: '-120px 0px -60% 0px', threshold: 0 }
+            );
+            observer.observe(el);
+            observers.push(observer);
+        });
+        return () => observers.forEach(o => o.disconnect());
+    }, []);
 
     const copyToClipboard = (text, id) => {
         navigator.clipboard.writeText(text);
@@ -1628,6 +1698,18 @@ function CLILabsView() {
         </div>
     );
 
+    // Lab detail view - full instructions from docs/*.md (identical content, user chooses GUI or MD)
+    if (selectedLab) {
+        const basePath = typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL ? import.meta.env.BASE_URL.replace(/\/$/, '') : '';
+        return (
+            <LabDetailView
+                lab={selectedLab}
+                onBack={() => setSelectedLabId(null)}
+                basePath={basePath}
+            />
+        );
+    }
+
     const menuOptions = [
         { num: '1', label: 'Network info', desc: 'View blockchain connection status (chain ID, block number, gas price)' },
         { num: '2', label: 'Block details', desc: 'Explore block data, timestamps, and transactions within a block' },
@@ -1644,7 +1726,7 @@ function CLILabsView() {
     return (
         <div style={{maxWidth: '900px', margin: '0 auto', padding: '2rem'}}>
             {/* Header */}
-            <div style={{marginBottom: '2rem'}}>
+            <div style={{marginBottom: '0.5rem'}}>
                 <h2 style={{color: '#f8fafc', margin: '0 0 0.5rem 0', fontSize: '1.8rem'}}>
                     🔍 Blockchain Forensics CLI
                 </h2>
@@ -1653,7 +1735,223 @@ function CLILabsView() {
                 </p>
             </div>
 
+            {/* ====== STICKY SEARCH + NAV BAR ====== */}
+            <div ref={navRef} style={{
+                position: 'sticky',
+                top: 0,
+                zIndex: 50,
+                background: 'linear-gradient(180deg, #0f172a 85%, transparent)',
+                paddingTop: '0.75rem',
+                paddingBottom: '1rem',
+                marginBottom: '1rem'
+            }}>
+                {/* Search Input */}
+                <div style={{
+                    display: 'flex',
+                    gap: '0.5rem',
+                    marginBottom: '0.75rem'
+                }}>
+                    <div style={{
+                        flex: 1,
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center'
+                    }}>
+                        <span style={{
+                            position: 'absolute', left: '0.75rem',
+                            color: '#64748b', fontSize: '1rem', pointerEvents: 'none'
+                        }}>&#128269;</span>
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            placeholder="Search guides... (e.g. deploy, compile, forensics, ABI)"
+                            style={{
+                                width: '100%',
+                                padding: '0.6rem 2.25rem 0.6rem 2.25rem',
+                                background: '#1e293b',
+                                border: '1px solid #334155',
+                                borderRadius: '0.5rem',
+                                color: '#f8fafc',
+                                fontSize: '0.9rem',
+                                outline: 'none'
+                            }}
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                style={{
+                                    position: 'absolute', right: '0.5rem',
+                                    background: '#334155', border: 'none', borderRadius: '50%',
+                                    width: '22px', height: '22px', color: '#94a3b8',
+                                    cursor: 'pointer', fontSize: '0.75rem',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }}
+                            >&times;</button>
+                        )}
+                    </div>
+                </div>
+
+                {/* Category Pills */}
+                <div style={{
+                    display: 'flex',
+                    gap: '0.375rem',
+                    flexWrap: 'wrap',
+                    marginBottom: '0.6rem'
+                }}>
+                    {CLI_CATEGORIES.map(cat => (
+                        <button
+                            key={cat}
+                            onClick={() => setActiveCategory(cat)}
+                            style={{
+                                padding: '0.3rem 0.75rem',
+                                borderRadius: '999px',
+                                border: activeCategory === cat ? 'none' : '1px solid #475569',
+                                background: activeCategory === cat ? '#3b82f6' : '#334155',
+                                color: activeCategory === cat ? 'white' : '#e2e8f0',
+                                cursor: 'pointer',
+                                fontSize: '0.8rem',
+                                fontWeight: activeCategory === cat ? '600' : '500',
+                                transition: 'all 0.15s'
+                            }}
+                        >{cat}</button>
+                    ))}
+                    {(searchQuery || activeCategory !== 'All') && (
+                        <button
+                            onClick={() => { setSearchQuery(''); setActiveCategory('All'); }}
+                            style={{
+                                padding: '0.3rem 0.75rem',
+                                borderRadius: '999px',
+                                border: '1px solid rgba(239, 68, 68, 0.4)',
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                color: '#fca5a5',
+                                cursor: 'pointer',
+                                fontSize: '0.8rem',
+                                marginLeft: '0.25rem'
+                            }}
+                        >Clear Filters</button>
+                    )}
+                </div>
+
+                {/* TOC Jump Links */}
+                <div style={{
+                    display: 'flex',
+                    gap: '0.25rem',
+                    flexWrap: 'wrap',
+                    overflowX: 'auto'
+                }}>
+                    {filteredSections.map(s => (
+                        <button
+                            key={s.id}
+                            onClick={() => scrollToSection(s.id)}
+                            style={{
+                                padding: '0.2rem 0.6rem',
+                                borderRadius: '0.375rem',
+                                border: activeSection === s.id ? 'none' : '1px solid #475569',
+                                background: activeSection === s.id ? 'rgba(59, 130, 246, 0.35)' : '#334155',
+                                color: activeSection === s.id ? '#93c5fd' : '#cbd5e1',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                fontWeight: activeSection === s.id ? '600' : '500',
+                                whiteSpace: 'nowrap',
+                                transition: 'all 0.15s'
+                            }}
+                        >{s.title}</button>
+                    ))}
+                </div>
+            </div>
+
+            {/* No results message */}
+            {filteredSections.length === 0 && (
+                <div style={{
+                    textAlign: 'center',
+                    padding: '3rem 1.5rem',
+                    color: '#94a3b8'
+                }}>
+                    <div style={{fontSize: '2.5rem', marginBottom: '1rem'}}>&#128270;</div>
+                    <h3 style={{color: '#f8fafc', margin: '0 0 0.5rem 0'}}>No matching guides found</h3>
+                    <p style={{margin: '0 0 1rem 0'}}>
+                        No results for "<strong style={{color: '#fbbf24'}}>{searchQuery}</strong>"
+                        {activeCategory !== 'All' && <> in <strong style={{color: '#93c5fd'}}>{activeCategory}</strong></>}
+                    </p>
+                    <button
+                        onClick={() => { setSearchQuery(''); setActiveCategory('All'); }}
+                        style={{
+                            padding: '0.5rem 1.25rem',
+                            background: '#3b82f6',
+                            border: 'none',
+                            borderRadius: '0.5rem',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                        }}
+                    >Show All Guides</button>
+                </div>
+            )}
+
+            {/* Available Labs - Lab list from docs */}
+            {visibleIds.has('available-labs') && (
+            <div id="cli-available-labs" ref={el => sectionRefs.current['available-labs'] = el}>
+            <div style={{
+                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(139, 92, 246, 0.1))',
+                border: '2px solid rgba(59, 130, 246, 0.4)',
+                borderRadius: '1rem',
+                padding: '1.5rem',
+                marginBottom: '2rem'
+            }}>
+                <h3 style={{color: '#93c5fd', margin: '0 0 0.5rem 0'}}>📚 Available Labs</h3>
+                <p style={{color: '#94a3b8', margin: '0 0 1rem 0', fontSize: '0.95rem'}}>
+                    Click a lab to see the full instructions. Content is identical to <code style={{color: '#fbbf24'}}>docs/*.md</code> — use the GUI or open the markdown file directly, whichever you prefer.
+                </p>
+                <div style={{display: 'grid', gap: '0.75rem'}}>
+                    {LABS.map(lab => (
+                        <button
+                            key={lab.id}
+                            onClick={() => setSelectedLabId(lab.id)}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '1rem',
+                                padding: '1rem 1.25rem',
+                                background: '#1e293b',
+                                border: '1px solid #334155',
+                                borderRadius: '0.75rem',
+                                color: '#f8fafc',
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseOver={e => {
+                                e.currentTarget.style.background = '#334155';
+                                e.currentTarget.style.borderColor = '#475569';
+                            }}
+                            onMouseOut={e => {
+                                e.currentTarget.style.background = '#1e293b';
+                                e.currentTarget.style.borderColor = '#334155';
+                            }}
+                        >
+                            <div style={{flex: 1}}>
+                                <div style={{fontWeight: '600', marginBottom: '0.25rem', fontSize: '1rem'}}>{lab.title}</div>
+                                <div style={{color: '#94a3b8', fontSize: '0.85rem'}}>{lab.description}</div>
+                                <div style={{display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap'}}>
+                                    <span style={{background: '#334155', padding: '0.15rem 0.5rem', borderRadius: '0.25rem', fontSize: '0.75rem', color: '#94a3b8'}}>{lab.duration}</span>
+                                    <span style={{background: '#334155', padding: '0.15rem 0.5rem', borderRadius: '0.25rem', fontSize: '0.75rem', color: '#94a3b8'}}>{lab.difficulty}</span>
+                                    <span style={{background: 'rgba(251, 191, 36, 0.2)', padding: '0.15rem 0.5rem', borderRadius: '0.25rem', fontSize: '0.75rem', color: '#fbbf24'}}>
+                                        {lab.terminalsNeeded} terminal{lab.terminalsNeeded > 1 ? 's' : ''}
+                                    </span>
+                                </div>
+                            </div>
+                            <span style={{color: '#64748b', fontSize: '1.25rem'}}>→</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+            </div>)}
+
             {/* Quick Start */}
+            {visibleIds.has('quick-start') && (
+            <div id="cli-quick-start" ref={el => sectionRefs.current['quick-start'] = el}>
             <div style={{
                 background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(59, 130, 246, 0.15))',
                 border: '2px solid rgba(34, 197, 94, 0.4)',
@@ -1662,61 +1960,122 @@ function CLILabsView() {
                 marginBottom: '2rem'
             }}>
                 <h3 style={{color: '#86efac', margin: '0 0 1rem 0'}}>🚀 Quick Start</h3>
+                <p style={{color: '#94a3b8', margin: '0 0 1rem 0', fontSize: '0.9rem'}}>
+                    The CLI runs inside the Docker container. Students typically do <strong>not</strong> have direct access to the project directory — use <code style={{color: '#fbbf24'}}>docker-compose exec</code> to enter the container.
+                </p>
+
+                <div style={{
+                    background: 'rgba(59, 130, 246, 0.1)',
+                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    borderRadius: '0.5rem',
+                    padding: '0.75rem 1rem',
+                    marginBottom: '1rem'
+                }}>
+                    <p style={{color: '#93c5fd', fontWeight: '600', margin: '0 0 0.5rem 0', fontSize: '0.9rem'}}>Who can run the CLI?</p>
+                    <ul style={{margin: 0, paddingLeft: '1.25rem', color: '#e2e8f0', fontSize: '0.85rem', lineHeight: 1.6}}>
+                        <li><strong>Instructor runs Docker</strong> — Students with terminal access to the host run <code style={{color: '#fbbf24'}}>docker-compose exec ethereum-trainer bash</code></li>
+                        <li><strong>Each student runs Docker</strong> — Each runs <code style={{color: '#fbbf24'}}>docker-compose up</code> on their machine, then <code style={{color: '#fbbf24'}}>exec</code> into their own container</li>
+                        <li><strong>Browser only</strong> — Students who only open the web UI cannot run the CLI; forensics requires terminal access to the container</li>
+                    </ul>
+                </div>
+
+                {/* Docker-first path */}
+                <div style={{
+                    background: 'rgba(14, 165, 233, 0.1)',
+                    border: '1px solid rgba(14, 165, 233, 0.4)',
+                    borderRadius: '0.5rem',
+                    padding: '0.75rem 1rem',
+                    marginBottom: '1rem'
+                }}>
+                    <p style={{color: '#38bdf8', fontWeight: '600', margin: '0 0 0.5rem 0', fontSize: '0.9rem'}}>🐳 Docker (recommended)</p>
+                    <p style={{color: '#94a3b8', margin: 0, fontSize: '0.85rem'}}>
+                        Instructor runs <code style={{color: '#fbbf24'}}>docker-compose up --build</code>. Students with terminal access to the host run:
+                    </p>
+                </div>
                 
                 <div style={{marginBottom: '1rem'}}>
                     <p style={{color: '#e2e8f0', margin: '0 0 0.75rem 0', fontWeight: '600'}}>
-                        1. Open a terminal and navigate to the CLI labs:
+                        1. Enter the container:
                     </p>
-                    <CodeBlock code="cd scripts/cli-labs/standalone" id="cd" />
+                    <CodeBlock code="docker-compose exec ethereum-trainer bash" id="docker-exec" />
                 </div>
 
                 <div style={{marginBottom: '1rem'}}>
                     <p style={{color: '#e2e8f0', margin: '0 0 0.75rem 0', fontWeight: '600'}}>
-                        2. Install dependencies (first time only):
+                        2. Navigate to CLI labs (inside container):
                     </p>
-                    <CodeBlock code="npm install" id="npm-install" />
+                    <CodeBlock code="cd /app/scripts/cli-labs/standalone" id="cd-docker" />
                 </div>
 
                 <div style={{marginBottom: '1rem'}}>
                     <p style={{color: '#e2e8f0', margin: '0 0 0.75rem 0', fontWeight: '600'}}>
-                        3. Configure connection (get values from instructor):
+                        3. Launch the interactive CLI:
                     </p>
-                    <CodeBlock 
-                        code={`# Windows PowerShell:
+                    <CodeBlock code="npm start" id="npm-start" />
+                    <p style={{color: '#94a3b8', margin: '0.5rem 0 0 0', fontSize: '0.85rem'}}>
+                        Dependencies are pre-installed in the image — no <code style={{color: '#fbbf24'}}>npm install</code> needed.
+                    </p>
+                </div>
+
+                {/* Path reference + Directory Required warning */}
+                <div style={{
+                    background: '#1e293b',
+                    borderRadius: '0.5rem',
+                    padding: '0.75rem 1rem',
+                    marginBottom: '1rem',
+                    border: '1px solid #334155'
+                }}>
+                    <p style={{color: '#93c5fd', fontWeight: '600', margin: '0 0 0.5rem 0', fontSize: '0.9rem'}}>📁 Path Reference</p>
+                    <table style={{width: '100%', fontSize: '0.85rem', color: '#e2e8f0', borderCollapse: 'collapse'}}>
+                        <tbody>
+                            <tr><td style={{padding: '0.25rem 0.5rem 0.25rem 0', color: '#94a3b8'}}>Inside Docker</td><td style={{padding: '0.25rem 0', fontFamily: "'Fira Code', monospace", color: '#fbbf24'}}>/app/scripts/cli-labs/standalone</td></tr>
+                            <tr><td style={{padding: '0.25rem 0.5rem 0.25rem 0', color: '#94a3b8'}}>Local development</td><td style={{padding: '0.25rem 0', fontFamily: "'Fira Code', monospace", color: '#fbbf24'}}>scripts/cli-labs/standalone</td></tr>
+                        </tbody>
+                    </table>
+                    <div style={{
+                        marginTop: '0.75rem',
+                        padding: '0.5rem 0.75rem',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        borderRadius: '0.375rem'
+                    }}>
+                        <p style={{color: '#fca5a5', margin: 0, fontSize: '0.85rem'}}>
+                            <strong>⚠️ Docker shell required:</strong> The <code style={{color: '#fbbf24'}}>/app/</code> path exists only inside the container. Run <code style={{color: '#fbbf24'}}>docker-compose exec ethereum-trainer bash</code> first — running from Windows PowerShell will fail with "path not found".
+                        </p>
+                    </div>
+                </div>
+
+                {/* Local dev alternative */}
+                <details style={{
+                    background: '#0f172a',
+                    borderRadius: '0.5rem',
+                    padding: '0.75rem 1rem',
+                    border: '1px solid #334155'
+                }}>
+                    <summary style={{color: '#94a3b8', cursor: 'pointer', fontSize: '0.9rem'}}>Local development (no Docker)</summary>
+                    <div style={{marginTop: '0.75rem'}}>
+                        <CodeBlock code="cd scripts/cli-labs/standalone" id="cd-local" />
+                        <CodeBlock code="npm install" id="npm-install" label="First time only" />
+                        <CodeBlock 
+                            code={`# Windows PowerShell:
 $env:RPC_URL="http://INSTRUCTOR_IP:8545"
 $env:CONTRACT_ADDRESS="0x..."
 
 # Mac / Linux / Codespaces:
 export RPC_URL="http://INSTRUCTOR_IP:8545"
 export CONTRACT_ADDRESS="0x..."`} 
-                        id="env"
-                        label="Set environment variables (choose your platform)"
-                    />
-                    <div style={{
-                        background: 'rgba(59, 130, 246, 0.1)',
-                        border: '1px solid rgba(59, 130, 246, 0.3)',
-                        borderRadius: '0.5rem',
-                        padding: '0.75rem 1rem',
-                        marginTop: '0.5rem'
-                    }}>
-                        <p style={{color: '#93c5fd', margin: 0, fontSize: '0.85rem'}}>
-                            <strong>Tip:</strong> Replace <code style={{color: '#fbbf24'}}>INSTRUCTOR_IP</code> with your instructor's 
-                            actual IP address (e.g. <code style={{color: '#fbbf24'}}>192.168.1.100</code>). The contract address starts 
-                            with <code style={{color: '#fbbf24'}}>0x</code> and is 42 characters long. If using GitHub Codespaces, 
-                            these may already be configured.
-                        </p>
+                            id="env"
+                            label="Set environment variables (get values from instructor)"
+                        />
+                        <CodeBlock code="npm start" id="npm-start-local" />
                     </div>
-                </div>
-
-                <div>
-                    <p style={{color: '#e2e8f0', margin: '0 0 0.75rem 0', fontWeight: '600'}}>
-                        4. Launch the interactive CLI:
-                    </p>
-                    <CodeBlock code="npm start" id="npm-start" />
-                </div>
+                </details>
             </div>
+            </div>)}
 
             {/* Menu Options */}
+            {visibleIds.has('menu-options') && (
+            <div id="cli-menu-options" ref={el => sectionRefs.current['menu-options'] = el}>
             <div style={{
                 background: '#1e293b',
                 borderRadius: '1rem',
@@ -1803,8 +2162,11 @@ export CONTRACT_ADDRESS="0x..."`}
                     })}
                 </div>
             </div>
+            </div>)}
 
             {/* Playground Section */}
+            {visibleIds.has('playground') && (
+            <div id="cli-playground" ref={el => sectionRefs.current['playground'] = el}>
             <div style={{
                 background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1))',
                 border: '2px solid rgba(251, 191, 36, 0.4)',
@@ -1851,41 +2213,279 @@ export CONTRACT_ADDRESS="0x..."`}
                     </div>
                 </div>
             </div>
+            </div>)}
 
-            {/* Available Variables */}
+            {/* ====== DEPLOY & SHARE: Core Collaborative Workflow ====== */}
+            {visibleIds.has('deploy-share') && (
+            <div id="cli-deploy-share" ref={el => sectionRefs.current['deploy-share'] = el}>
             <div style={{
-                background: '#1e293b',
+                background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(168, 85, 247, 0.12))',
+                border: '2px solid rgba(14, 165, 233, 0.5)',
                 borderRadius: '1rem',
                 padding: '1.5rem',
-                marginBottom: '2rem',
-                border: '1px solid #334155'
+                marginBottom: '2rem'
             }}>
-                <h3 style={{color: '#f8fafc', margin: '0 0 1rem 0'}}>📦 Available in Playground</h3>
-                
-                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem'}}>
-                    <div>
-                        <h4 style={{color: '#93c5fd', margin: '0 0 0.5rem 0', fontSize: '0.95rem'}}>Core Objects</h4>
-                        <ul style={{margin: 0, paddingLeft: '1.25rem', color: '#e2e8f0'}}>
-                            <li><code style={{color: '#fbbf24'}}>provider</code> - Blockchain connection</li>
-                            <li><code style={{color: '#fbbf24'}}>wallet</code> - Your account</li>
-                            <li><code style={{color: '#fbbf24'}}>contract</code> - PoS contract</li>
-                            <li><code style={{color: '#fbbf24'}}>ethers</code> - ethers.js library</li>
-                            <li><code style={{color: '#fbbf24'}}>ctx</code> - Your variables</li>
-                        </ul>
+                <h3 style={{color: '#38bdf8', margin: '0 0 0.25rem 0', fontSize: '1.3rem'}}>
+                    🤝 Deploy &amp; Share: Working with Contracts as a Team
+                </h3>
+                <p style={{color: '#e2e8f0', margin: '0 0 1.5rem 0'}}>
+                    In this lab, one person <strong>deploys</strong> a smart contract and then <strong>shares the address</strong> with classmates so everyone can interact with the same contract on the shared blockchain.
+                </p>
+
+                {/* PART A: Deploy a Contract */}
+                <div style={{
+                    background: '#0f172a',
+                    borderRadius: '0.75rem',
+                    padding: '1.25rem',
+                    marginBottom: '1.5rem',
+                    border: '1px solid #334155'
+                }}>
+                    <h4 style={{color: '#38bdf8', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                        <span style={{
+                            background: '#38bdf8', color: '#0f172a', width: '24px', height: '24px',
+                            borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 'bold', fontSize: '0.85rem'
+                        }}>A</span>
+                        Deploy a Smart Contract (the Creator)
+                    </h4>
+                    <p style={{color: '#94a3b8', margin: '0 0 1rem 0', fontSize: '0.9rem'}}>
+                        Use the Contract Builder to pick a template, customize it, and deploy it to the blockchain.
+                    </p>
+
+                    <div style={{display: 'grid', gap: '0.75rem'}}>
+                        {[
+                            { step: '1', title: 'Launch the Contract Builder', detail: 'From the Interactive CLI, choose option 9, or run directly. Docker shell required first:', code: 'docker-compose exec ethereum-trainer bash\ncd /app/scripts/cli-labs/standalone\nnpm start\n# Then select option 9\n\n# Or run directly:\nnode 5-contract-builder.js' },
+                            { step: '2', title: 'Pick a template and customize', detail: 'Choose from 6 templates (House Sale, Vehicle Title, Event Tickets, Voting, Crowdfunding, Classroom Vote). Fill in the custom fields or press Enter to use defaults.' },
+                            { step: '3', title: 'Review, compile, and deploy', detail: 'The builder shows you the generated Solidity code, compiles it with Hardhat, and deploys it. When deployment succeeds, you\'ll see:' , code: '✅ Contract deployed!\n📍 Address: 0x5FbDB2315678afecb367f032d93F642f64180aa3\n📝 Transaction: 0xabc123...' },
+                            { step: '4', title: 'Share the contract address with your classmates', detail: 'Copy the address (starts with 0x, 42 characters). Everyone on the same network can interact with your contract using this address. Also share the template type (e.g. "houseSale", "classroomVote") so they know the ABI.' }
+                        ].map(s => (
+                            <div key={s.step} style={{
+                                background: 'rgba(30, 41, 59, 0.5)',
+                                borderRadius: '0.5rem',
+                                padding: '0.75rem 1rem',
+                                borderLeft: '3px solid #38bdf8'
+                            }}>
+                                <div style={{display: 'flex', gap: '0.5rem', alignItems: 'baseline', marginBottom: '0.25rem'}}>
+                                    <span style={{color: '#38bdf8', fontWeight: 'bold'}}>Step {s.step}:</span>
+                                    <span style={{color: '#e2e8f0', fontWeight: '600'}}>{s.title}</span>
+                                </div>
+                                <p style={{color: '#94a3b8', margin: '0.25rem 0 0 0', fontSize: '0.85rem'}}>{s.detail}</p>
+                                {s.code && (
+                                    <pre style={{
+                                        background: '#020617', borderRadius: '0.375rem', padding: '0.75rem',
+                                        margin: '0.5rem 0 0 0', color: '#fbbf24',
+                                        fontFamily: "'Fira Code', monospace", fontSize: '0.85rem',
+                                        overflow: 'auto', whiteSpace: 'pre-wrap'
+                                    }}>{s.code}</pre>
+                                )}
+                            </div>
+                        ))}
                     </div>
-                    <div>
-                        <h4 style={{color: '#93c5fd', margin: '0 0 0.5rem 0', fontSize: '0.95rem'}}>Helper Functions</h4>
-                        <ul style={{margin: 0, paddingLeft: '1.25rem', color: '#e2e8f0'}}>
-                            <li><code style={{color: '#fbbf24'}}>formatEth(wei)</code> - Wei to ETH</li>
-                            <li><code style={{color: '#fbbf24'}}>parseEth(eth)</code> - ETH to Wei</li>
-                            <li><code style={{color: '#fbbf24'}}>formatAddr(addr)</code> - Shorten address</li>
-                            <li><code style={{color: '#fbbf24'}}>toDate(ts)</code> - Timestamp to date</li>
-                        </ul>
+
+                    <div style={{
+                        background: 'rgba(251, 191, 36, 0.1)',
+                        border: '1px solid rgba(251, 191, 36, 0.3)',
+                        borderRadius: '0.5rem',
+                        padding: '0.75rem 1rem',
+                        marginTop: '1rem'
+                    }}>
+                        <p style={{color: '#fcd34d', margin: 0, fontSize: '0.85rem'}}>
+                            <strong>After deploying</strong>, you can immediately interact with your contract through the builder's interactive menu. 
+                            It will list all available functions (labeled <span style={{color: '#86efac'}}>[view]</span>, <span style={{color: '#60a5fa'}}>[write]</span>, or <span style={{color: '#fcd34d'}}>[payable]</span>) 
+                            and prompt you for any required parameters.
+                        </p>
+                    </div>
+                </div>
+
+                {/* PART B: Connect to Someone Else's Contract */}
+                <div style={{
+                    background: '#0f172a',
+                    borderRadius: '0.75rem',
+                    padding: '1.25rem',
+                    border: '1px solid #334155'
+                }}>
+                    <h4 style={{color: '#a78bfa', margin: '0 0 0.75rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                        <span style={{
+                            background: '#a78bfa', color: '#0f172a', width: '24px', height: '24px',
+                            borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 'bold', fontSize: '0.85rem'
+                        }}>B</span>
+                        Connect to a Classmate's Contract (Everyone Else)
+                    </h4>
+                    <p style={{color: '#94a3b8', margin: '0 0 0.5rem 0', fontSize: '0.9rem'}}>
+                        <strong>What you need from the person who deployed:</strong>
+                    </p>
+                    <div style={{display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem'}}>
+                        <span style={{background: '#1e293b', border: '1px solid #475569', borderRadius: '0.5rem', padding: '0.5rem 0.75rem', color: '#e2e8f0', fontSize: '0.85rem'}}>
+                            <strong style={{color: '#38bdf8'}}>1.</strong> Contract Address <span style={{color: '#94a3b8'}}>(0x...)</span>
+                        </span>
+                        <span style={{background: '#1e293b', border: '1px solid #475569', borderRadius: '0.5rem', padding: '0.5rem 0.75rem', color: '#e2e8f0', fontSize: '0.85rem'}}>
+                            <strong style={{color: '#38bdf8'}}>2.</strong> Template Type <span style={{color: '#94a3b8'}}>(e.g. "classroomVote", "houseSale")</span>
+                        </span>
+                    </div>
+
+                    {/* Method 1: Playground (CLI) */}
+                    <div style={{
+                        background: 'rgba(30, 41, 59, 0.5)',
+                        borderRadius: '0.5rem',
+                        padding: '1rem',
+                        marginBottom: '0.75rem',
+                        borderLeft: '3px solid #a78bfa'
+                    }}>
+                        <div style={{color: '#c4b5fd', fontWeight: '600', marginBottom: '0.5rem'}}>
+                            Method 1: CLI Playground (Option 8) — Full Control
+                        </div>
+                        <p style={{color: '#94a3b8', margin: '0 0 0.5rem 0', fontSize: '0.85rem'}}>
+                            Use the Playground's JavaScript console to connect to any contract. You can read state, call functions, and send transactions.
+                        </p>
+                        <pre style={{
+                            background: '#020617', borderRadius: '0.375rem', padding: '0.75rem',
+                            margin: '0 0 0.5rem 0', color: '#fbbf24',
+                            fontFamily: "'Fira Code', monospace", fontSize: '0.85rem',
+                            overflow: 'auto', whiteSpace: 'pre-wrap'
+                        }}>{`// === Connect to a classmate's Classroom Vote contract ===
+
+// Step 1: Define the ABI (what functions the contract has)
+ctx.abi = [
+  'function question() view returns (string)',
+  'function optionA() view returns (string)',
+  'function optionB() view returns (string)',
+  'function votesForA() view returns (uint256)',
+  'function votesForB() view returns (uint256)',
+  'function votingOpen() view returns (bool)',
+  'function vote(bool voteForA)',
+  'function getResults() view returns (string, string, uint256, string, uint256, uint256, bool)'
+]
+
+// Step 2: Connect using the address your classmate shared
+ctx.vote = new ethers.Contract('0xPASTE_ADDRESS_HERE', ctx.abi, wallet)
+
+// Step 3: Read the current state
+console.log('Question:', await ctx.vote.question())
+console.log('Option A:', await ctx.vote.optionA())
+console.log('Option B:', await ctx.vote.optionB())
+console.log('Votes A:', (await ctx.vote.votesForA()).toString())
+console.log('Votes B:', (await ctx.vote.votesForB()).toString())
+
+// Step 4: Cast your vote! (true = Option A, false = Option B)
+await ctx.vote.vote(true)
+console.log('Vote cast!')`}</pre>
+                        <div style={{
+                            background: 'rgba(59, 130, 246, 0.1)',
+                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                            borderRadius: '0.375rem',
+                            padding: '0.5rem 0.75rem'
+                        }}>
+                            <p style={{color: '#93c5fd', margin: 0, fontSize: '0.8rem'}}>
+                                <strong>Note:</strong> Use <code style={{color: '#fbbf24'}}>provider</code> instead of <code style={{color: '#fbbf24'}}>wallet</code> in Step 2 if you only need to <em>read</em> data. 
+                                Use <code style={{color: '#fbbf24'}}>wallet</code> when you need to <em>write</em> (send transactions like voting or staking).
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Method 2: Web Dashboard */}
+                    <div style={{
+                        background: 'rgba(30, 41, 59, 0.5)',
+                        borderRadius: '0.5rem',
+                        padding: '1rem',
+                        marginBottom: '0.75rem',
+                        borderLeft: '3px solid #a78bfa'
+                    }}>
+                        <div style={{color: '#c4b5fd', fontWeight: '600', marginBottom: '0.5rem'}}>
+                            Method 2: Web Dashboard — Visual Interface
+                        </div>
+                        <p style={{color: '#94a3b8', margin: '0 0 0.5rem 0', fontSize: '0.85rem'}}>
+                            Open the standalone dashboard page in your browser. It provides a visual interface for viewing contract state.
+                        </p>
+                        <pre style={{
+                            background: '#020617', borderRadius: '0.375rem', padding: '0.75rem',
+                            margin: '0 0 0.5rem 0', color: '#fbbf24',
+                            fontFamily: "'Fira Code', monospace", fontSize: '0.85rem',
+                            overflow: 'auto', whiteSpace: 'pre-wrap'
+                        }}>{`# Open in your browser:
+http://localhost:5173/dashboard.html
+
+# Or if using your instructor's URL:
+http://INSTRUCTOR_IP:5173/dashboard.html`}</pre>
+                        <p style={{color: '#94a3b8', margin: '0.5rem 0 0 0', fontSize: '0.85rem'}}>
+                            On the dashboard page:
+                        </p>
+                        <ol style={{color: '#cbd5e1', margin: '0.25rem 0 0 0', paddingLeft: '1.5rem', fontSize: '0.85rem'}}>
+                            <li>Enter the RPC URL (e.g. <code style={{color: '#fbbf24'}}>http://INSTRUCTOR_IP:8545</code>)</li>
+                            <li>Click <strong>"Add Contract"</strong></li>
+                            <li>Paste the <strong>contract address</strong> your classmate shared</li>
+                            <li>Enter the <strong>template type</strong> (e.g. <code style={{color: '#fbbf24'}}>classroomVote</code>, <code style={{color: '#fbbf24'}}>houseSale</code>, <code style={{color: '#fbbf24'}}>voting</code>, <code style={{color: '#fbbf24'}}>crowdfunding</code>, <code style={{color: '#fbbf24'}}>vehicleTitle</code>, <code style={{color: '#fbbf24'}}>eventTickets</code>)</li>
+                            <li>Give it a name and the dashboard will display its live state with auto-refresh</li>
+                        </ol>
+                    </div>
+
+                    {/* ABI Reference */}
+                    <div style={{
+                        background: 'rgba(30, 41, 59, 0.5)',
+                        borderRadius: '0.5rem',
+                        padding: '1rem',
+                        borderLeft: '3px solid #a78bfa'
+                    }}>
+                        <div style={{color: '#c4b5fd', fontWeight: '600', marginBottom: '0.5rem'}}>
+                            ABI Quick Reference (for the Playground)
+                        </div>
+                        <p style={{color: '#94a3b8', margin: '0 0 0.75rem 0', fontSize: '0.85rem'}}>
+                            The ABI tells ethers.js what functions a contract has. Copy the one matching your classmate's template type:
+                        </p>
+                        <div style={{display: 'grid', gap: '0.5rem'}}>
+                            {[
+                                { label: '🎓 classroomVote', code: `ctx.abi = ['function question() view returns (string)','function optionA() view returns (string)','function optionB() view returns (string)','function votesForA() view returns (uint256)','function votesForB() view returns (uint256)','function votingOpen() view returns (bool)','function vote(bool voteForA)','function openVoting()','function closeVoting()','function getResults() view returns (string, string, uint256, string, uint256, uint256, bool)']` },
+                                { label: '🗳️ voting', code: `ctx.abi = ['function votingTitle() view returns (string)','function votingClosed() view returns (bool)','function getTotalVotes() view returns (uint256)','function getAllResults() view returns (string[] memory, uint256[] memory)','function vote(uint256 optionIndex)','function closeVoting()','function extendDeadline(uint256 additionalDays)']` },
+                                { label: '💸 crowdfunding', code: `ctx.abi = ['function campaignName() view returns (string)','function goalAmount() view returns (uint256)','function totalRaised() view returns (uint256)','function goalReached() view returns (bool)','function contribute() payable','function claimRefund()','function creatorWithdraw()','function getCampaignStatus() view returns (string, uint256, uint256, uint256, uint256, bool, bool)']` },
+                                { label: '🏠 houseSale', code: `ctx.abi = ['function propertyAddress() view returns (string)','function salePrice() view returns (uint256)','function seller() view returns (address)','function buyer() view returns (address)','function currentState() view returns (uint8)','function payDeposit() payable','function passInspection()','function payBalance() payable','function confirmTransfer()','function cancelSale()']` },
+                                { label: '🚗 vehicleTitle', code: `ctx.abi = ['function vin() view returns (string)','function currentOwner() view returns (address)','function getVehicleInfo() view returns (string, string, string, uint256, address, uint8)','function transferOwnership(address newOwner)','function updateMileage(uint256 miles)','function updateTitleStatus(uint8 status)']` },
+                                { label: '🎟️ eventTickets', code: `ctx.abi = ['function eventName() view returns (string)','function ticketsSold() view returns (uint256)','function maxSupply() view returns (uint256)','function getEventInfo() view returns (string, string, uint256, uint256, uint256, bool)','function buyTicket() payable','function transferTicket(address to)','function checkIn(address attendee)','function cancelEvent()']` }
+                            ].map(a => (
+                                <details key={a.label} style={{
+                                    background: '#020617',
+                                    borderRadius: '0.375rem',
+                                    border: '1px solid #1e293b'
+                                }}>
+                                    <summary style={{
+                                        padding: '0.5rem 0.75rem',
+                                        color: '#e2e8f0',
+                                        cursor: 'pointer',
+                                        fontSize: '0.85rem',
+                                        fontWeight: '600'
+                                    }}>{a.label}</summary>
+                                    <pre style={{
+                                        padding: '0.5rem 0.75rem',
+                                        margin: 0,
+                                        color: '#fbbf24',
+                                        fontFamily: "'Fira Code', monospace",
+                                        fontSize: '0.8rem',
+                                        overflow: 'auto',
+                                        whiteSpace: 'pre-wrap',
+                                        borderTop: '1px solid #1e293b'
+                                    }}>{a.code}</pre>
+                                </details>
+                            ))}
+                        </div>
+                        <div style={{
+                            background: 'rgba(59, 130, 246, 0.1)',
+                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                            borderRadius: '0.375rem',
+                            padding: '0.5rem 0.75rem',
+                            marginTop: '0.75rem'
+                        }}>
+                            <p style={{color: '#93c5fd', margin: 0, fontSize: '0.8rem'}}>
+                                <strong>After pasting the ABI</strong>, connect with: <code style={{color: '#fbbf24'}}>ctx.c = new ethers.Contract('0xADDRESS', ctx.abi, wallet)</code><br/>
+                                Then call functions: <code style={{color: '#fbbf24'}}>await ctx.c.functionName()</code>
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
+            </div>)}
 
             {/* Individual Labs */}
+            {visibleIds.has('individual-labs') && (
+            <div id="cli-individual-labs" ref={el => sectionRefs.current['individual-labs'] = el}>
             <div style={{
                 background: '#1e293b',
                 borderRadius: '1rem',
@@ -1894,15 +2494,27 @@ export CONTRACT_ADDRESS="0x..."`}
                 border: '1px solid #334155'
             }}>
                 <h3 style={{color: '#f8fafc', margin: '0 0 0.5rem 0'}}>📚 Individual Lab Scripts</h3>
+                <div style={{
+                    marginBottom: '1rem',
+                    padding: '0.75rem 1rem',
+                    background: 'rgba(34, 197, 94, 0.1)',
+                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                    borderRadius: '0.5rem'
+                }}>
+                    <p style={{color: '#86efac', margin: 0, fontSize: '0.9rem'}}>
+                        <strong>✓ Docker shell required:</strong> The <code style={{color: '#fbbf24'}}>/app/</code> path exists only inside the container. Run <code style={{color: '#fbbf24'}}>docker-compose exec ethereum-trainer bash</code> first, then the commands below.
+                    </p>
+                </div>
                 <p style={{color: '#94a3b8', margin: '0 0 1.5rem 0'}}>
-                    Each lab is a standalone guided exercise. Run them directly from the <code style={{background: '#0f172a', padding: '2px 6px', borderRadius: '4px', color: '#fbbf24'}}>scripts/cli-labs/standalone</code> directory, 
-                    or access Labs 4 and 5 from the Interactive CLI menu.
+                    Each lab is a standalone guided exercise. Labs 4 and 5 are also in the Interactive CLI menu (option 8 and 9).
                 </p>
                 
                 <div style={{display: 'grid', gap: '1.5rem'}}>
                     {/* Lab 1 */}
                     <div>
-                        <CodeBlock code="node 1-explore-blockchain.js" id="lab1" label="Lab 1: Explore the Blockchain" />
+                        <CodeBlock code={`docker-compose exec ethereum-trainer bash
+cd /app/scripts/cli-labs/standalone
+node 1-explore-blockchain.js`} id="lab1" label="Lab 1: Explore the Blockchain" />
                         <div style={{padding: '0 0.5rem', color: '#cbd5e1', fontSize: '0.9rem'}}>
                             <p style={{margin: '0.25rem 0 0.5rem 0'}}>
                                 <strong>What you'll do:</strong> Connect to the blockchain and run your first queries — get the current block number, 
@@ -1916,7 +2528,9 @@ export CONTRACT_ADDRESS="0x..."`}
 
                     {/* Lab 2 */}
                     <div>
-                        <CodeBlock code="node 2-sign-transaction.js" id="lab2" label="Lab 2: Sign & Send Transactions" />
+                        <CodeBlock code={`docker-compose exec ethereum-trainer bash
+cd /app/scripts/cli-labs/standalone
+node 2-sign-transaction.js`} id="lab2" label="Lab 2: Sign & Send Transactions" />
                         <div style={{padding: '0 0.5rem', color: '#cbd5e1', fontSize: '0.9rem'}}>
                             <p style={{margin: '0.25rem 0 0.5rem 0'}}>
                                 <strong>What you'll do:</strong> Create a transaction from scratch, sign it with a private key, broadcast it to the network, 
@@ -1930,7 +2544,9 @@ export CONTRACT_ADDRESS="0x..."`}
 
                     {/* Lab 3 */}
                     <div>
-                        <CodeBlock code="node 3-interact-contract.js" id="lab3" label="Lab 3: Interact with Smart Contracts" />
+                        <CodeBlock code={`docker-compose exec ethereum-trainer bash
+cd /app/scripts/cli-labs/standalone
+node 3-interact-contract.js`} id="lab3" label="Lab 3: Interact with Smart Contracts" />
                         <div style={{padding: '0 0.5rem', color: '#cbd5e1', fontSize: '0.9rem'}}>
                             <p style={{margin: '0.25rem 0 0.5rem 0'}}>
                                 <strong>What you'll do:</strong> Connect to the deployed PoS contract, read its state (total staked, your balance), 
@@ -1944,7 +2560,9 @@ export CONTRACT_ADDRESS="0x..."`}
 
                     {/* Lab 4 */}
                     <div>
-                        <CodeBlock code="node 4-forensics.js" id="lab4" label="Lab 4: Blockchain Forensics" />
+                        <CodeBlock code={`docker-compose exec ethereum-trainer bash
+cd /app/scripts/cli-labs/standalone
+node 4-forensics.js`} id="lab4" label="Lab 4: Blockchain Forensics" />
                         <div style={{padding: '0 0.5rem', color: '#cbd5e1', fontSize: '0.9rem'}}>
                             <p style={{margin: '0.25rem 0 0.5rem 0'}}>
                                 <strong>What you'll do:</strong> Five guided forensics exercises — analyze addresses (EOA vs contract), trace transactions, 
@@ -1958,7 +2576,9 @@ export CONTRACT_ADDRESS="0x..."`}
 
                     {/* Lab 5 */}
                     <div>
-                        <CodeBlock code="node 5-contract-builder.js" id="lab5" label="Lab 5: Smart Contract Builder" />
+                        <CodeBlock code={`docker-compose exec ethereum-trainer bash
+cd /app/scripts/cli-labs/standalone
+node 5-contract-builder.js`} id="lab5" label="Lab 5: Smart Contract Builder" />
                         <div style={{padding: '0 0.5rem', color: '#cbd5e1', fontSize: '0.9rem'}}>
                             <p style={{margin: '0.25rem 0 0.5rem 0'}}>
                                 <strong>What you'll do:</strong> Select from 6 real-world contract templates (house sale, vehicle title, event tickets, voting, 
@@ -1972,8 +2592,82 @@ export CONTRACT_ADDRESS="0x..."`}
                     </div>
                 </div>
             </div>
+            </div>)}
+
+            {/* Forensics Labs (Ransomware Investigation) */}
+            {visibleIds.has('forensics-labs') && (
+            <div id="cli-forensics-labs" ref={el => sectionRefs.current['forensics-labs'] = el}>
+            <div style={{
+                background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.1))',
+                border: '2px solid rgba(251, 191, 36, 0.4)',
+                borderRadius: '1rem',
+                padding: '1.5rem',
+                marginBottom: '2rem'
+            }}>
+                <h3 style={{color: '#fbbf24', margin: '0 0 0.5rem 0'}}>🔬 Forensics Labs: Ransomware Investigation</h3>
+                <p style={{color: '#e2e8f0', margin: '0 0 1rem 0'}}>
+                    Interactive labs where you trace simulated ransomware payments through tumbler networks. <strong>Requires Docker</strong> — run inside the container. You need <strong>two terminals</strong>: one for the lab, one for the Hardhat console to investigate.
+                </p>
+
+                <div style={{
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    borderRadius: '0.5rem',
+                    padding: '0.75rem 1rem',
+                    marginBottom: '1rem'
+                }}>
+                    <p style={{color: '#fca5a5', fontWeight: '600', margin: 0, fontSize: '0.9rem'}}>⚠️ Run setup first</p>
+                    <p style={{color: '#94a3b8', margin: '0.25rem 0 0 0', fontSize: '0.85rem'}}>
+                        The blockchain starts fresh each <code style={{color: '#fbbf24'}}>docker-compose up --build</code>. You must run the setup script <strong>after</strong> starting the container to generate the scenario.
+                    </p>
+                </div>
+
+                <div style={{display: 'grid', gap: '1rem'}}>
+                    <div style={{
+                        background: '#1e293b',
+                        borderRadius: '0.75rem',
+                        padding: '1rem',
+                        border: '1px solid #334155'
+                    }}>
+                        <h4 style={{color: '#86efac', margin: '0 0 0.5rem 0', fontSize: '0.95rem'}}>Basic Ransomware Lab</h4>
+                        <p style={{color: '#94a3b8', margin: '0 0 0.75rem 0', fontSize: '0.85rem'}}>
+                            Trace a single victim's ransom through attacker wallet and tumblers to the final destination.
+                        </p>
+                        <CodeBlock code={`docker-compose exec ethereum-trainer bash
+cd /app/scripts/cli-labs/standalone
+node forensics-setup.js           # Generate scenario first
+node 6-ransomware-investigation.js`} id="forensics-basic" label="Terminal 1: Run the lab" />
+                        <p style={{color: '#64748b', margin: '0.5rem 0 0 0', fontSize: '0.8rem'}}>
+                            Terminal 2: <code style={{color: '#fbbf24'}}>docker-compose exec ethereum-trainer bash</code> then <code style={{color: '#fbbf24'}}>npx hardhat console --network localhost</code> for investigation.
+                        </p>
+                    </div>
+
+                    <div style={{
+                        background: '#1e293b',
+                        borderRadius: '0.75rem',
+                        padding: '1rem',
+                        border: '1px solid #334155'
+                    }}>
+                        <h4 style={{color: '#86efac', margin: '0 0 0.5rem 0', fontSize: '0.95rem'}}>Advanced Ransomware Lab</h4>
+                        <p style={{color: '#94a3b8', margin: '0 0 0.75rem 0', fontSize: '0.85rem'}}>
+                            Multi-victim scenario with a coordinated attack and more complex tumbler network.
+                        </p>
+                        <CodeBlock code={`docker-compose exec ethereum-trainer bash
+cd /app/scripts/cli-labs/standalone
+node forensics-setup-advanced.js   # Generate advanced scenario first
+node 7-ransomware-advanced.js`} id="forensics-advanced" label="Terminal 1: Run the advanced lab" />
+                    </div>
+                </div>
+
+                <p style={{color: '#94a3b8', margin: '1rem 0 0 0', fontSize: '0.85rem'}}>
+                    Setup creates <code style={{color: '#fbbf24'}}>forensics-case.json</code> (student starting point) and <code style={{color: '#fbbf24'}}>.forensics-scenario.json</code> (answer key — keep private).
+                </p>
+            </div>
+            </div>)}
 
             {/* Smart Contract Builder Guide */}
+            {visibleIds.has('contract-builder') && (
+            <div id="cli-contract-builder" ref={el => sectionRefs.current['contract-builder'] = el}>
             <div style={{
                 background: 'linear-gradient(135deg, rgba(167, 139, 250, 0.1), rgba(139, 92, 246, 0.1))',
                 border: '2px solid rgba(167, 139, 250, 0.4)',
@@ -2047,98 +2741,11 @@ export CONTRACT_ADDRESS="0x..."`}
                     ))}
                 </div>
             </div>
-
-            {/* Contract Interaction Guide */}
-            <div style={{
-                background: '#1e293b',
-                borderRadius: '1rem',
-                padding: '1.5rem',
-                marginBottom: '2rem',
-                border: '1px solid #334155'
-            }}>
-                <h3 style={{color: '#f8fafc', margin: '0 0 0.5rem 0'}}>📝 Understanding Contract Functions</h3>
-                <p style={{color: '#94a3b8', margin: '0 0 1.25rem 0'}}>
-                    Smart contracts expose three types of functions. Understanding the difference is key to interacting with any contract.
-                </p>
-
-                <div style={{display: 'grid', gap: '1rem'}}>
-                    {/* View functions */}
-                    <div style={{
-                        background: 'rgba(34, 197, 94, 0.08)',
-                        border: '1px solid rgba(34, 197, 94, 0.3)',
-                        borderRadius: '0.75rem',
-                        padding: '1rem'
-                    }}>
-                        <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem'}}>
-                            <span style={{
-                                background: '#22c55e', color: '#0f172a', padding: '0.15rem 0.6rem',
-                                borderRadius: '999px', fontSize: '0.75rem', fontWeight: 'bold'
-                            }}>VIEW</span>
-                            <span style={{color: '#86efac', fontWeight: '600'}}>Read-Only — Free, No Gas</span>
-                        </div>
-                        <p style={{color: '#cbd5e1', margin: '0 0 0.5rem 0', fontSize: '0.9rem'}}>
-                            View functions read data from the blockchain without changing anything. They execute locally and cost nothing.
-                        </p>
-                        <CodeBlock code={`// Examples of view functions:\nawait contract.totalStaked()          // How much ETH is staked\nawait contract.getStake(address)      // A specific validator's stake\nawait contract.owner()                // Who deployed the contract`} id="view-ex" />
-                    </div>
-
-                    {/* Write functions */}
-                    <div style={{
-                        background: 'rgba(59, 130, 246, 0.08)',
-                        border: '1px solid rgba(59, 130, 246, 0.3)',
-                        borderRadius: '0.75rem',
-                        padding: '1rem'
-                    }}>
-                        <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem'}}>
-                            <span style={{
-                                background: '#3b82f6', color: 'white', padding: '0.15rem 0.6rem',
-                                borderRadius: '999px', fontSize: '0.75rem', fontWeight: 'bold'
-                            }}>WRITE</span>
-                            <span style={{color: '#93c5fd', fontWeight: '600'}}>State-Changing — Costs Gas</span>
-                        </div>
-                        <p style={{color: '#cbd5e1', margin: '0 0 0.5rem 0', fontSize: '0.9rem'}}>
-                            Write functions modify the blockchain state. They create a transaction, require gas, and must be mined into a block.
-                        </p>
-                        <CodeBlock code={`// Examples of write functions:\nawait contract.unstake()              // Withdraw staked ETH\nawait contract.sendMessage("Hello!")  // Post to on-chain chat\n// Returns a transaction receipt with status, gas used, etc.`} id="write-ex" />
-                    </div>
-
-                    {/* Payable functions */}
-                    <div style={{
-                        background: 'rgba(251, 191, 36, 0.08)',
-                        border: '1px solid rgba(251, 191, 36, 0.3)',
-                        borderRadius: '0.75rem',
-                        padding: '1rem'
-                    }}>
-                        <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem'}}>
-                            <span style={{
-                                background: '#fbbf24', color: '#0f172a', padding: '0.15rem 0.6rem',
-                                borderRadius: '999px', fontSize: '0.75rem', fontWeight: 'bold'
-                            }}>PAYABLE</span>
-                            <span style={{color: '#fcd34d', fontWeight: '600'}}>Accepts ETH — Costs Gas + Value</span>
-                        </div>
-                        <p style={{color: '#cbd5e1', margin: '0 0 0.5rem 0', fontSize: '0.9rem'}}>
-                            Payable functions accept ETH along with the transaction. You send both gas (fee) and value (the ETH the contract receives).
-                        </p>
-                        <CodeBlock code={`// Examples of payable functions:\nawait contract.stake({ value: ethers.parseEther("2.0") })\n// Sends 2 ETH to the contract as your stake\n// The { value: ... } option is how you attach ETH to a call`} id="payable-ex" />
-                    </div>
-                </div>
-
-                <div style={{
-                    background: 'rgba(59, 130, 246, 0.1)',
-                    border: '1px solid rgba(59, 130, 246, 0.3)',
-                    borderRadius: '0.5rem',
-                    padding: '0.75rem 1rem',
-                    marginTop: '1rem'
-                }}>
-                    <p style={{color: '#93c5fd', margin: 0, fontSize: '0.85rem'}}>
-                        <strong>Tip:</strong> In the Contract Builder menu, functions are labeled <span style={{color: '#86efac'}}>[view]</span>, <span style={{color: '#60a5fa'}}>[write]</span>, or <span style={{color: '#fcd34d'}}>[payable]</span> so 
-                        you always know what type you're calling. View functions return instantly; write and payable functions 
-                        wait for the transaction to be mined (~12 seconds).
-                    </p>
-                </div>
-            </div>
+            </div>)}
 
             {/* Expanded Playground Examples */}
+            {visibleIds.has('walkthroughs') && (
+            <div id="cli-walkthroughs" ref={el => sectionRefs.current['walkthroughs'] = el}>
             <div style={{
                 background: '#1e293b',
                 borderRadius: '1rem',
@@ -2268,8 +2875,11 @@ ctx.events.forEach(e => {
 // )`} />
                 </div>
             </div>
+            </div>)}
 
             {/* Test Accounts */}
+            {visibleIds.has('test-accounts') && (
+            <div id="cli-test-accounts" ref={el => sectionRefs.current['test-accounts'] = el}>
             <div style={{
                 background: '#1e293b',
                 borderRadius: '1rem',
@@ -2316,6 +2926,7 @@ ctx.events.forEach(e => {
                     </p>
                 </div>
             </div>
+            </div>)}
         </div>
     );
 }
@@ -6712,6 +7323,7 @@ function App() {
   const [wallet, setWallet] = useState({ address: null, signer: null, balance: '0', mode: null, nickname: 'My Wallet' })
   const [showAccountManager, setShowAccountManager] = useState(false)
   const [showLiveHelp, setShowLiveHelp] = useState(false)
+  const [newWalletModal, setNewWalletModal] = useState(null) // { address, privateKey } when showing new wallet credentials
   const [posAddress, setPosAddress] = useState(() => {
     const stored = localStorage.getItem("pos_addr");
     if (stored && stored.length === 42) return stored;
@@ -6922,9 +7534,9 @@ function App() {
     }
   }, [rpcUrl])
 
-  // 2. Auto-Connect Logic (Only in Live Mode)
+  // 2. Auto-Connect Logic (Live Mode and Token Concepts need wallet for deploy/interact)
   useEffect(() => {
-    if (view !== 'live' || !provider || wallet.mode === 'metamask') return;
+    if ((view !== 'live' && view !== 'tokens') || !provider || wallet.mode === 'metamask') return;
 
     let cancelled = false
 
@@ -6969,9 +7581,13 @@ function App() {
 
     hydrateGuestWallet()
 
+    const onWalletSwitched = () => hydrateGuestWallet()
+    window.addEventListener('walletSwitched', onWalletSwitched)
+
     return () => {
         cancelled = true
         clearInterval(interval)
+        window.removeEventListener('walletSwitched', onWalletSwitched)
     }
   }, [provider, view, wallet.mode]);
 
@@ -7707,6 +8323,9 @@ function App() {
                         <button className={`roadmap-step ${view === 'sim' ? 'active' : ''} ${!unlocks.sim ? 'locked' : ''}`} onClick={() => requestView('sim')}>
                             <span>4</span> Practice
                         </button>
+                        <button className={`roadmap-step ${view === 'tokens' ? 'active' : ''}`} onClick={() => setView('tokens')}>
+                            <span>5</span> Token Concepts (FT vs NFT)
+                        </button>
                     </div>
                     {navHint && <p className="nav-hint">{navHint}</p>}
                     
@@ -7809,34 +8428,54 @@ function App() {
                         <div style={{fontSize: '0.75rem', color: '#60a5fa', marginBottom: '0.5rem'}}>
                             👤 Your Account
                         </div>
-                        <div style={{fontSize: '0.8rem', color: '#f1f5f9', marginBottom: '0.5rem', fontFamily: 'monospace'}}>
-                            {wallet.address ? `${wallet.address.slice(0,8)}...${wallet.address.slice(-6)}` : 'No wallet'}
+                        <div style={{fontSize: '0.8rem', color: '#f1f5f9', marginBottom: '0.5rem'}}>
+                            {(() => {
+                                const wallets = getWalletList();
+                                const activeInfo = getWalletInfo();
+                                if (wallets.length === 0) return <span style={{fontFamily: 'monospace', color: '#64748b'}}>No wallet</span>;
+                                return (
+                                    <select
+                                        value={activeInfo?.address || ''}
+                                        onChange={(e) => {
+                                            const w = wallets.find(x => x.address === e.target.value);
+                                            if (w) setActiveWallet(w.id);
+                                        }}
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.35rem',
+                                            background: 'rgba(0,0,0,0.3)',
+                                            border: '1px solid rgba(59, 130, 246, 0.4)',
+                                            borderRadius: '0.25rem',
+                                            color: '#f1f5f9',
+                                            fontSize: '0.8rem',
+                                            fontFamily: 'monospace'
+                                        }}
+                                    >
+                                        {wallets.map((w) => (
+                                            <option key={w.id} value={w.address}>
+                                                {w.nickname} ({w.address.slice(0,6)}...{w.address.slice(-4)}) {w.address === wallet?.address ? '● Active' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                );
+                            })()}
                         </div>
                         <div style={{display: 'flex', gap: '0.5rem', flexWrap: 'wrap'}}>
                             <button
                                 onClick={() => {
                                     let key = prompt('Enter private key (0x...) to import:');
                                     if (!key) return;
-                                    
-                                    // Clean up the key - trim whitespace
                                     key = key.trim();
-                                    
-                                    // Add 0x prefix if missing
-                                    if (!key.startsWith('0x') && key.length === 64) {
-                                        key = '0x' + key;
-                                    }
-                                    
-                                    // Validate and import
+                                    if (!key.startsWith('0x') && key.length === 64) key = '0x' + key;
                                     if (key.startsWith('0x') && key.length === 66) {
                                         const result = importWallet(key, 'Imported Wallet');
                                         if (result.success) {
-                                            alert(`Account imported!\n\nAddress: ${result.address}\n\nRefreshing...`);
-                                            window.location.reload();
+                                            window.dispatchEvent(new CustomEvent('walletSwitched'));
                                         } else {
                                             alert('Import failed. Please check your private key.');
                                         }
                                     } else {
-                                        alert(`Invalid key format.\n\nExpected: 66 characters starting with 0x\nGot: ${key.length} characters\n\nMake sure you copied the full private key.`);
+                                        alert(`Invalid key format. Expected: 66 chars starting with 0x. Got: ${key.length}`);
                                     }
                                 }}
                                 style={{
@@ -7857,8 +8496,8 @@ function App() {
                                 onClick={() => {
                                     const nickname = prompt('Enter a nickname for your new wallet:') || 'My Wallet';
                                     const newWallet = generateNewWallet(nickname);
-                                    alert(`New wallet created!\n\nAddress: ${newWallet.address}\n\n⚠️ SAVE YOUR PRIVATE KEY:\n${newWallet.privateKey}\n\nRefreshing...`);
-                                    window.location.reload();
+                                    setNewWalletModal({ address: newWallet.address, privateKey: newWallet.privateKey });
+                                    window.dispatchEvent(new CustomEvent('walletSwitched'));
                                 }}
                                 style={{
                                     flex: 1,
@@ -8138,7 +8777,7 @@ function App() {
                             💻 Terminal Required
                         </div>
                         <p style={{fontSize: '0.85rem', color: '#cbd5e1', margin: 0}}>
-                            These labs require command-line access. Follow along in your terminal.
+                            These labs require command-line access. Start with <strong>Available Labs</strong> for step-by-step instructions.
                         </p>
                     </div>
                     
@@ -8831,9 +9470,78 @@ function App() {
                 <PoSValidatorSim onComplete={() => setView('live')} />
             )}
 
+            {/* TOKEN CONCEPTS VIEW - FT vs NFT Learning */}
+            {view === 'tokens' && (
+                <TokenConceptsView
+                    onComplete={() => setView('concepts')}
+                    onGoToLive={() => setView('live')}
+                    provider={provider}
+                    wallet={wallet}
+                    rpcUrl={rpcUrl}
+                />
+            )}
+
             {/* 3. LIVE NETWORK VIEW */}
             {view === 'live' && (
                 <div className="live-dashboard">
+                    {/* Active Identity Banner - Always visible */}
+                    <div style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '1rem',
+                        alignItems: 'center',
+                        padding: '0.75rem 1rem',
+                        marginBottom: '1rem',
+                        background: 'rgba(30, 41, 59, 0.95)',
+                        border: '1px solid rgba(59, 130, 246, 0.4)',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.85rem'
+                    }}>
+                        <span style={{color: '#94a3b8', fontWeight: '600'}}>Active Identity:</span>
+                        <span style={{
+                            padding: '0.2rem 0.5rem',
+                            background: isInstructor ? 'rgba(236, 72, 153, 0.2)' : 'rgba(59, 130, 246, 0.2)',
+                            borderRadius: '0.25rem',
+                            color: isInstructor ? '#f472b6' : '#93c5fd',
+                            fontWeight: '600'
+                        }}>
+                            {isInstructor ? 'Instructor' : 'Student'}
+                        </span>
+                        <span style={{color: '#cbd5e1'}}>
+                            {wallet.address ? (
+                                <>
+                                    <span style={{fontFamily: 'monospace'}}>{wallet.address}</span>
+                                    <button onClick={() => copyAddress(wallet.address)} style={{
+                                        marginLeft: '0.5rem',
+                                        padding: '0.15rem 0.4rem',
+                                        background: 'rgba(255,255,255,0.1)',
+                                        border: '1px solid rgba(255,255,255,0.2)',
+                                        borderRadius: '0.25rem',
+                                        color: '#94a3b8',
+                                        cursor: 'pointer',
+                                        fontSize: '0.75rem'
+                                    }}>Copy</button>
+                                </>
+                            ) : 'No wallet'}
+                        </span>
+                        <span style={{color: '#64748b'}}>|</span>
+                        <span style={{color: '#94a3b8', fontWeight: '600'}}>Contract:</span>
+                        <span style={{color: '#cbd5e1', fontFamily: 'monospace'}}>
+                            {posAddress && posAddress.length === 42 ? `${posAddress.slice(0,10)}...${posAddress.slice(-8)}` : 'Not set'}
+                        </span>
+                        {posAddress && posAddress.length === 42 && (
+                            <button onClick={() => copyAddress(posAddress)} style={{
+                                padding: '0.15rem 0.4rem',
+                                background: 'rgba(255,255,255,0.1)',
+                                border: '1px solid rgba(255,255,255,0.2)',
+                                borderRadius: '0.25rem',
+                                color: '#94a3b8',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem'
+                            }}>Copy</button>
+                        )}
+                    </div>
+                    
                     {/* Social Proof Banner - Community Activity */}
                     <div style={{marginBottom: '1rem'}}>
                         <SocialProof 
@@ -9912,6 +10620,126 @@ function App() {
                         </div>
                     )}
                     
+                    {/* New Wallet Credentials Modal - copyable address & private key */}
+                    {newWalletModal && (
+                        <div
+                            style={{
+                                position: 'fixed',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                background: 'rgba(0,0,0,0.85)',
+                                zIndex: 10001,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '2rem'
+                            }}
+                            onClick={() => setNewWalletModal(null)}
+                        >
+                            <div
+                                style={{
+                                    background: '#1e293b',
+                                    borderRadius: '1rem',
+                                    padding: '1.5rem 2rem',
+                                    border: '2px solid #3b82f6',
+                                    maxWidth: '500px',
+                                    width: '100%'
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <h3 style={{ margin: '0 0 1rem 0', color: '#f8fafc', fontSize: '1.25rem' }}>
+                                    ✅ New Wallet Created
+                                </h3>
+                                <p style={{ color: '#94a3b8', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                                    Save these credentials. You need the private key to access this wallet later.
+                                </p>
+                                <div style={{ marginBottom: '1rem' }}>
+                                    <label style={{display: 'block', color: '#94a3b8', fontSize: '0.8rem', marginBottom: '0.35rem'}}>Address</label>
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                        <input
+                                            readOnly
+                                            value={newWalletModal.address}
+                                            style={{
+                                                flex: 1,
+                                                padding: '0.5rem',
+                                                background: 'rgba(0,0,0,0.3)',
+                                                border: '1px solid rgba(59, 130, 246, 0.4)',
+                                                borderRadius: '0.35rem',
+                                                color: '#f1f5f9',
+                                                fontFamily: 'monospace',
+                                                fontSize: '0.85rem'
+                                            }}
+                                        />
+                                        <button
+                                            onClick={() => { navigator.clipboard.writeText(newWalletModal.address); }}
+                                            style={{
+                                                padding: '0.5rem 1rem',
+                                                background: 'rgba(59, 130, 246, 0.3)',
+                                                border: '1px solid rgba(59, 130, 246, 0.5)',
+                                                borderRadius: '0.35rem',
+                                                color: '#93c5fd',
+                                                cursor: 'pointer',
+                                                fontSize: '0.85rem'
+                                            }}
+                                        >
+                                            📋 Copy
+                                        </button>
+                                    </div>
+                                </div>
+                                <div style={{ marginBottom: '1rem' }}>
+                                    <label style={{display: 'block', color: '#fbbf24', fontSize: '0.8rem', marginBottom: '0.35rem'}}>⚠️ Private Key (NEVER share)</label>
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                        <input
+                                            readOnly
+                                            value={newWalletModal.privateKey}
+                                            style={{
+                                                flex: 1,
+                                                padding: '0.5rem',
+                                                background: 'rgba(0,0,0,0.3)',
+                                                border: '1px solid rgba(251, 191, 36, 0.4)',
+                                                borderRadius: '0.35rem',
+                                                color: '#f1f5f9',
+                                                fontFamily: 'monospace',
+                                                fontSize: '0.85rem'
+                                            }}
+                                        />
+                                        <button
+                                            onClick={() => { navigator.clipboard.writeText(newWalletModal.privateKey); }}
+                                            style={{
+                                                padding: '0.5rem 1rem',
+                                                background: 'rgba(251, 191, 36, 0.2)',
+                                                border: '1px solid rgba(251, 191, 36, 0.5)',
+                                                borderRadius: '0.35rem',
+                                                color: '#fcd34d',
+                                                cursor: 'pointer',
+                                                fontSize: '0.85rem'
+                                            }}
+                                        >
+                                            📋 Copy
+                                        </button>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setNewWalletModal(null)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.6rem',
+                                        background: 'rgba(34, 197, 94, 0.2)',
+                                        border: '1px solid rgba(34, 197, 94, 0.5)',
+                                        borderRadius: '0.35rem',
+                                        color: '#86efac',
+                                        cursor: 'pointer',
+                                        fontSize: '1rem'
+                                    }}
+                                >
+                                    Got it — I've saved my credentials
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Help Guide Overlay */}
                     {showLiveHelp && (
                         <div 

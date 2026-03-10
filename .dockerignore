@@ -2,7 +2,6 @@
 node_modules
 frontend/node_modules
 scripts/cli-labs/standalone/node_modules
-my-ethereum-lab
 
 # Build outputs - will be rebuilt in container
 frontend/dist

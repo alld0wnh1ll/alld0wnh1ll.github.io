@@ -29,6 +29,7 @@ export default function AccountManager({ provider, onAccountChange, compact = fa
   const [newNickname, setNewNickname] = useState('');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [newWalletCreds, setNewWalletCreds] = useState(null); // { address, privateKey } when showing new wallet
 
   // Load wallet on mount
   useEffect(() => {
@@ -62,9 +63,7 @@ export default function AccountManager({ provider, onAccountChange, compact = fa
     setWalletInfo(result);
     setNewNickname('');
     onAccountChange?.(result);
-    
-    // Show the private key with warning
-    alert(`✅ Wallet Created!\n\n⚠️ SAVE YOUR PRIVATE KEY:\n${result.privateKey}\n\nYour Address: ${result.address}\n\nYou need the private key to access your wallet!`);
+    setNewWalletCreds({ address: result.address, privateKey: result.privateKey });
   };
 
   const handleImport = () => {
@@ -130,6 +129,7 @@ export default function AccountManager({ provider, onAccountChange, compact = fa
 
   // Full mode
   return (
+    <>
     <div style={styles.container}>
       <h3 style={styles.title}>👤 My Account</h3>
       
@@ -242,6 +242,127 @@ export default function AccountManager({ provider, onAccountChange, compact = fa
         </div>
       )}
     </div>
+
+    {/* New Wallet Credentials Modal - copyable */}
+    {newWalletCreds && (
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.85)',
+          zIndex: 10001,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '2rem'
+        }}
+        onClick={() => setNewWalletCreds(null)}
+      >
+        <div
+          style={{
+            background: '#1e293b',
+            borderRadius: '1rem',
+            padding: '1.5rem 2rem',
+            border: '2px solid #3b82f6',
+            maxWidth: '500px',
+            width: '100%'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3 style={{ margin: '0 0 1rem 0', color: '#f8fafc', fontSize: '1.25rem' }}>
+            ✅ Wallet Created
+          </h3>
+          <p style={{ color: '#94a3b8', marginBottom: '1rem', fontSize: '0.9rem' }}>
+            Save these credentials. You need the private key to access this wallet.
+          </p>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{display: 'block', color: '#94a3b8', fontSize: '0.8rem', marginBottom: '0.35rem'}}>Address</label>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <input
+                readOnly
+                value={newWalletCreds.address}
+                style={{
+                  flex: 1,
+                  padding: '0.5rem',
+                  background: 'rgba(0,0,0,0.3)',
+                  border: '1px solid rgba(59, 130, 246, 0.4)',
+                  borderRadius: '0.35rem',
+                  color: '#f1f5f9',
+                  fontFamily: 'monospace',
+                  fontSize: '0.85rem'
+                }}
+              />
+              <button
+                onClick={() => { navigator.clipboard.writeText(newWalletCreds.address); }}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: 'rgba(59, 130, 246, 0.3)',
+                  border: '1px solid rgba(59, 130, 246, 0.5)',
+                  borderRadius: '0.35rem',
+                  color: '#93c5fd',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem'
+                }}
+              >
+                📋 Copy
+              </button>
+            </div>
+          </div>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{display: 'block', color: '#fbbf24', fontSize: '0.8rem', marginBottom: '0.35rem'}}>⚠️ Private Key (NEVER share)</label>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <input
+                readOnly
+                value={newWalletCreds.privateKey}
+                style={{
+                  flex: 1,
+                  padding: '0.5rem',
+                  background: 'rgba(0,0,0,0.3)',
+                  border: '1px solid rgba(251, 191, 36, 0.4)',
+                  borderRadius: '0.35rem',
+                  color: '#f1f5f9',
+                  fontFamily: 'monospace',
+                  fontSize: '0.85rem'
+                }}
+              />
+              <button
+                onClick={() => { navigator.clipboard.writeText(newWalletCreds.privateKey); }}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: 'rgba(251, 191, 36, 0.2)',
+                  border: '1px solid rgba(251, 191, 36, 0.5)',
+                  borderRadius: '0.35rem',
+                  color: '#fcd34d',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem'
+                }}
+              >
+                📋 Copy
+              </button>
+            </div>
+          </div>
+          <button
+            onClick={() => setNewWalletCreds(null)}
+            style={{
+              width: '100%',
+              padding: '0.6rem',
+              background: 'rgba(34, 197, 94, 0.2)',
+              border: '1px solid rgba(34, 197, 94, 0.5)',
+              borderRadius: '0.35rem',
+              color: '#86efac',
+              cursor: 'pointer',
+              fontSize: '1rem'
+            }}
+          >
+            Got it — I've saved my credentials
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

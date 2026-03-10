@@ -1,0 +1,25 @@
+{
+  "caseId": "RANSOM-ADV-2026-001",
+  "incidentDate": "2026-03-02T00:20:01.364Z",
+  "description": "Multiple companies targeted by the same ransomware gang. Trace all payments to find the cash-out point.",
+  "victims": [
+    {
+      "name": "TechStart Inc",
+      "address": "0xE73224Fa59486d09d6D1494d7a4e6D745b665e86",
+      "reportedAmount": "3 ETH"
+    },
+    {
+      "name": "MedData Corp",
+      "address": "0x10D60b5e0c3ff226b4A94D1D742d7dE7Cd9B4ab3",
+      "reportedAmount": "4 ETH"
+    },
+    {
+      "name": "RetailPlus LLC",
+      "address": "0xD5DBe3a700CB73e33cCc25C16CBc736b53765f91",
+      "reportedAmount": "2.5 ETH"
+    }
+  ],
+  "totalReportedAmount": "9.5 ETH",
+  "startingBlock": 40,
+  "hint": "All three payments eventually converge at a single wallet."
+}

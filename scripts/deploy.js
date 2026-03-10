@@ -1,19 +1,6 @@
 const hre = require("hardhat");
 
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const unlockTime = currentTimestampInSeconds + 60;
-
-  const lockedAmount = hre.ethers.parseEther("1");
-
-  // 1. Deploy Lock Contract
-  const lock = await hre.ethers.deployContract("Lock", [unlockTime], {
-    value: lockedAmount,
-  });
-  await lock.waitForDeployment();
-  console.log(`Lock deployed to ${lock.target}`);
-
-  // 2. Deploy PoS Simulator (deployer becomes instructor automatically)
   const [deployer] = await hre.ethers.getSigners();
   console.log(`\n🎓 Deploying PoS Simulator with instructor: ${deployer.address}`);
   
@@ -44,6 +31,13 @@ async function main() {
   console.log(`   - Check missed attestations`);
   console.log(`\n📣 Share this contract address with students: ${pos.target}`);
   
+  // Verify the contract is callable (catches wrong contract at address)
+  const epoch = await pos.currentEpoch();
+  if (epoch === undefined || epoch === null) {
+    throw new Error('PoS verification failed: currentEpoch() returned invalid value');
+  }
+  console.log(`\n🔍 Verified: currentEpoch() = ${epoch}`);
+
   // Write contract address to file for easy access
   const fs = require('fs');
   fs.writeFileSync('CONTRACT_ADDRESS.txt', pos.target + '\n');

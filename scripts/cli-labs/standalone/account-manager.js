@@ -116,11 +116,12 @@ async function generateAccount() {
   console.log(color('dim', 'to import your account into the CLI or web interface.'));
   console.log(color('dim', '─────────────────────────────────────────────'));
   
-  // Save to accounts file
+  // Save to accounts file (including private key for classroom convenience)
   const accounts = loadAccounts();
   accounts.students.push({
     name: studentName.trim(),
     address: wallet.address,
+    privateKey: wallet.privateKey,
     createdAt: new Date().toISOString(),
     funded: false,
     fundedAmount: '0'
@@ -142,9 +143,9 @@ async function generateAccount() {
 // ============================================================================
 
 async function importAccount() {
-  console.log(color('cyan', '\n📥 IMPORT EXISTING ACCOUNT\n'));
+  console.log(color('cyan', '\n📥 IMPORT & REGISTER ACCOUNT\n'));
   console.log(line());
-  console.log('Enter your private key to use your existing account.\n');
+  console.log('Import an existing account and optionally register it.\n');
   
   const privateKey = await ask('Private Key (starts with 0x): ');
   
@@ -158,15 +159,73 @@ async function importAccount() {
     const wallet = new ethers.Wallet(privateKey, provider);
     const balance = await provider.getBalance(wallet.address);
     
-    console.log(color('green', '\n✓ Account Imported Successfully!\n'));
+    console.log(color('green', '\n✓ Account Imported!\n'));
     console.log(`  Address: ${color('bright', wallet.address)}`);
     console.log(`  Balance: ${color('cyan', ethers.formatEther(balance))} ETH`);
     
-    currentAccount = {
-      address: wallet.address,
-      privateKey: privateKey,
-      wallet: wallet
-    };
+    // Check if already registered
+    const accounts = loadAccounts();
+    const existing = accounts.students.find(s => 
+      s.address.toLowerCase() === wallet.address.toLowerCase()
+    );
+    
+    if (existing) {
+      console.log(color('dim', `\nAlready registered as: ${existing.name}`));
+      
+      // Update private key if not stored
+      if (!existing.privateKey) {
+        const saveKey = await ask('Save private key for this account? (y/n): ');
+        if (saveKey.toLowerCase() === 'y') {
+          const idx = accounts.students.findIndex(s => 
+            s.address.toLowerCase() === wallet.address.toLowerCase()
+          );
+          accounts.students[idx].privateKey = privateKey;
+          saveAccounts(accounts);
+          console.log(color('green', '✓ Private key saved.'));
+        }
+      }
+      
+      currentAccount = {
+        name: existing.name,
+        address: wallet.address,
+        privateKey: privateKey,
+        wallet: wallet
+      };
+    } else {
+      // Offer to register
+      const register = await ask('\nRegister this account? (y/n): ');
+      
+      if (register.toLowerCase() === 'y') {
+        const studentName = await ask('Enter name for this account: ');
+        
+        if (studentName.trim()) {
+          accounts.students.push({
+            name: studentName.trim(),
+            address: wallet.address,
+            privateKey: privateKey,
+            createdAt: new Date().toISOString(),
+            funded: parseFloat(ethers.formatEther(balance)) > 0,
+            fundedAmount: ethers.formatEther(balance)
+          });
+          saveAccounts(accounts);
+          console.log(color('green', `✓ Registered as: ${studentName.trim()}`));
+          
+          currentAccount = {
+            name: studentName.trim(),
+            address: wallet.address,
+            privateKey: privateKey,
+            wallet: wallet
+          };
+        }
+      } else {
+        currentAccount = {
+          name: 'Imported Account',
+          address: wallet.address,
+          privateKey: privateKey,
+          wallet: wallet
+        };
+      }
+    }
     
     return currentAccount;
     
@@ -356,6 +415,116 @@ async function listStudents() {
 }
 
 // ============================================================================
+// SELECT FROM REGISTERED ACCOUNTS
+// ============================================================================
+
+async function selectFromList() {
+  console.log(color('cyan', '\n📋 SELECT FROM REGISTERED ACCOUNTS\n'));
+  console.log(line());
+  
+  const accounts = loadAccounts();
+  
+  if (accounts.students.length === 0) {
+    console.log(color('yellow', 'No students registered yet.'));
+    console.log(color('dim', 'Use "Generate New Account" first.'));
+    return null;
+  }
+  
+  console.log(`${color('bright', 'Available Accounts:')}\n`);
+  
+  for (let i = 0; i < accounts.students.length; i++) {
+    const student = accounts.students[i];
+    let balance = '(checking...)';
+    try {
+      const bal = await provider.getBalance(student.address);
+      balance = `${ethers.formatEther(bal)} ETH`;
+    } catch (e) {
+      balance = '(unknown)';
+    }
+    
+    const hasKey = student.privateKey ? color('green', '✓ key stored') : color('yellow', '○ no key');
+    const fundedStatus = student.funded ? color('green', 'funded') : color('dim', 'unfunded');
+    
+    console.log(`  ${color('cyan', i + 1)}. ${color('bright', student.name)}`);
+    console.log(`     Address: ${student.address.substring(0, 10)}...${student.address.substring(38)}`);
+    console.log(`     Balance: ${balance} | ${fundedStatus} | ${hasKey}\n`);
+  }
+  
+  console.log(`  ${color('dim', '0. Cancel')}\n`);
+  
+  const choice = await ask('Select account number: ');
+  
+  if (choice === '0' || !choice.trim()) {
+    return null;
+  }
+  
+  const index = parseInt(choice) - 1;
+  
+  if (isNaN(index) || index < 0 || index >= accounts.students.length) {
+    console.log(color('red', 'Invalid selection.'));
+    return null;
+  }
+  
+  const selected = accounts.students[index];
+  let privateKey = selected.privateKey;
+  
+  // If no private key stored, ask for it
+  if (!privateKey) {
+    console.log(color('yellow', `\nNo private key stored for ${selected.name}.`));
+    privateKey = await ask('Enter private key (0x...): ');
+    
+    if (!privateKey.startsWith('0x') || privateKey.length !== 66) {
+      console.log(color('red', 'Invalid private key format.'));
+      return null;
+    }
+    
+    // Verify the key matches the address
+    try {
+      const testWallet = new ethers.Wallet(privateKey);
+      if (testWallet.address.toLowerCase() !== selected.address.toLowerCase()) {
+        console.log(color('red', 'Private key does not match this account address.'));
+        return null;
+      }
+      
+      // Optionally save the key for future use
+      const saveKey = await ask('Save this key for future sessions? (y/n): ');
+      if (saveKey.toLowerCase() === 'y') {
+        accounts.students[index].privateKey = privateKey;
+        saveAccounts(accounts);
+        console.log(color('green', '✓ Private key saved.'));
+      }
+    } catch (error) {
+      console.log(color('red', `Invalid private key: ${error.message}`));
+      return null;
+    }
+  }
+  
+  // Create the wallet and set as current account
+  try {
+    const wallet = new ethers.Wallet(privateKey, provider);
+    const balance = await provider.getBalance(wallet.address);
+    
+    currentAccount = {
+      name: selected.name,
+      address: wallet.address,
+      privateKey: privateKey,
+      wallet: wallet
+    };
+    
+    console.log(color('green', `\n✓ Account Activated: ${selected.name}`));
+    console.log(`  Address: ${color('bright', wallet.address)}`);
+    console.log(`  Balance: ${color('cyan', ethers.formatEther(balance))} ETH`);
+    console.log(color('dim', '\nThis account will be used for all transactions.'));
+    
+    return currentAccount;
+    
+  } catch (error) {
+    console.log(color('red', `Failed to activate account: ${error.message}`));
+    return null;
+  }
+}
+
+// ============================================================================
 // EXPORT FOR WEB
 // ============================================================================
 
@@ -390,17 +559,28 @@ async function exportForWeb() {
 async function mainMenu() {
   while (true) {
     console.log(color('cyan', '\n═══ ACCOUNT MANAGER ═══\n'));
-    console.log('  Student Options:');
+    console.log(color('dim', 'Create and manage student accounts for labs.\n'));
+    
+    // Show current active account if set
+    if (currentAccount) {
+      console.log(color('green', `  Active: ${currentAccount.name || 'Imported Account'}`));
+      console.log(color('dim', `          ${currentAccount.address}\n`));
+    }
+    
+    console.log('  Create/Import:');
     console.log('    1. 🔑 Generate New Account');
-    console.log('    2. 📥 Import Existing Account');
-    console.log('    3. 💳 Check Balance');
-    console.log('    4. 🌐 Export for Web Use');
+    console.log('    2. 📥 Import by Private Key (and register)');
     console.log('');
-    console.log('  Instructor Options:');
-    console.log('    5. 💰 Fund Student Accounts');
-    console.log('    6. 👥 List Registered Students');
+    console.log('  Use Account:');
+    console.log('    3. 📋 Activate from Registered List');
+    console.log('    4. 💳 Check Any Balance');
+    console.log('    5. 🌐 Export for Web Use');
     console.log('');
-    console.log('    0. Exit');
+    console.log('  Instructor Tools:');
+    console.log('    6. 💰 Fund Student Accounts');
+    console.log('    7. 👥 View All Registered Students');
+    console.log('');
+    console.log('    0. Back to Main Menu');
     
     const choice = await ask('\nSelect option: ');
     
@@ -414,18 +594,22 @@ async function mainMenu() {
         await pause();
         break;
       case '3':
-        await viewBalance();
+        await selectFromList();
         await pause();
         break;
       case '4':
-        await exportForWeb();
+        await viewBalance();
         await pause();
         break;
       case '5':
-        await fundStudentAccounts();
+        await exportForWeb();
         await pause();
         break;
       case '6':
+        await fundStudentAccounts();
+        await pause();
+        break;
+      case '7':
         await listStudents();
         await pause();
         break;
@@ -460,7 +644,11 @@ export async function accountManager(externalRl = null) {
   await mainMenu();
 }
 
-export { generateAccount, importAccount, fundStudentAccounts, listStudents };
+export function getCurrentAccount() {
+  return currentAccount;
+}
+
+export { generateAccount, importAccount, selectFromList, fundStudentAccounts, listStudents };
 
 // ============================================================================
 // STANDALONE EXECUTION

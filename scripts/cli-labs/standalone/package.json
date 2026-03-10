@@ -10,7 +10,12 @@
     "lab2": "node 2-sign-transaction.js",
     "lab3": "node 3-interact-contract.js",
     "lab4": "node 4-forensics.js",
-    "forensics": "node 4-forensics.js"
+    "lab5": "node 5-contract-builder.js",
+    "forensics": "node 4-forensics.js",
+    "ransomware": "node 6-ransomware-investigation.js",
+    "ransomware-advanced": "node 7-ransomware-advanced.js",
+    "setup-forensics": "node forensics-setup.js",
+    "setup-forensics-advanced": "node forensics-setup-advanced.js"
   },
   "bin": {
     "blockchain-cli": "./interactive.js"

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/copy-docs.cjs",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
@@ -16,6 +17,8 @@
   "dependencies": {
     "ethers": "^6.15.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   }
 }

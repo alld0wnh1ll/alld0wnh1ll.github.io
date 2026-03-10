@@ -8,9 +8,20 @@
 
 import { ethers } from 'ethers';
 import * as readline from 'readline';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 import 'dotenv/config';
 import { builderWizard } from './5-contract-builder.js';
 import { accountManager } from './account-manager.js';
+import { runInvestigation } from './6-ransomware-investigation.js';
+import { runAdvancedInvestigation } from './7-ransomware-advanced.js';
+import { runTokenConceptsLab } from './8-token-concepts.js';
+
+// Resolve project root (3 levels up from scripts/cli-labs/standalone/)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
 
 // Configuration
 const RPC_URL = process.env.RPC_URL || 'http://localhost:8545';
@@ -76,6 +87,14 @@ const colors = {
 };
 
 const c = (color, text) => `${colors[color]}${text}${colors.reset}`;
+
+function printStatusBanner() {
+  const active = selectedAccount ? `${selectedAccount.address.slice(0, 10)}...${selectedAccount.address.slice(-8)}` : 'none';
+  const contract = CONTRACT_ADDRESS && CONTRACT_ADDRESS.length === 42
+    ? `${CONTRACT_ADDRESS.slice(0, 10)}...${CONTRACT_ADDRESS.slice(-8)}`
+    : 'not set';
+  console.log(c('dim', `[Active: ${active} | Contract: ${contract}]`));
+}
 
 // ============================================================================
 // MENU ACTIONS
@@ -151,26 +170,78 @@ async function showAccountBalances() {
 }
 
 async function selectAccount() {
-  console.log(c('cyan', '\n👤 Select Account\n'));
+  console.log(c('cyan', '\n👤 Switch Account\n'));
   console.log('─'.repeat(50));
   
-  // Show test accounts
-  console.log(c('dim', 'Test Accounts:'));
+  // Load registered student accounts
+  const ACCOUNTS_FILE = path.join(PROJECT_ROOT, 'student-accounts.json');
+  let studentAccounts = [];
+  if (fs.existsSync(ACCOUNTS_FILE)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf-8'));
+      studentAccounts = data.students || [];
+    } catch (e) { /* ignore */ }
+  }
+  
+  // Build unified list
+  const allAccounts = [];
+  
+  // Test accounts (instructor use)
+  console.log(c('dim', 'Test Accounts (Instructor):'));
   for (let i = 0; i < TEST_ACCOUNTS.length; i++) {
     const acc = TEST_ACCOUNTS[i];
+    allAccounts.push({ ...acc, type: 'test' });
     const balance = await provider.getBalance(acc.address);
-    const marker = acc.address === selectedAccount.address ? c('green', ' ◀') : '';
+    const marker = acc.address === selectedAccount?.address ? c('green', ' ◀') : '';
     console.log(`  ${i + 1}. ${acc.name} - ${formatEth(balance)} ETH${marker}`);
   }
   
-  // Custom import option
-  console.log(c('dim', '\nCustom Account:'));
-  console.log(`  p. Import with Private Key (your own wallet)`);
+  // Student accounts
+  if (studentAccounts.length > 0) {
+    console.log(c('dim', '\nRegistered Students:'));
+    for (let i = 0; i < studentAccounts.length; i++) {
+      const acc = studentAccounts[i];
+      allAccounts.push({ 
+        name: acc.name, 
+        address: acc.address, 
+        key: acc.privateKey,
+        type: 'student'
+      });
+      const num = TEST_ACCOUNTS.length + i + 1;
+      let balanceStr = '(no key)';
+      if (acc.privateKey) {
+        try {
+          const balance = await provider.getBalance(acc.address);
+          balanceStr = `${formatEth(balance)} ETH`;
+        } catch (e) {
+          balanceStr = '(error)';
+        }
+      }
+      const marker = acc.address === selectedAccount?.address ? c('green', ' ◀') : '';
+      const keyStatus = acc.privateKey ? '' : c('yellow', ' [need key]');
+      console.log(`  ${num}. ${acc.name} - ${balanceStr}${keyStatus}${marker}`);
+    }
+  }
   
-  const choice = await ask('\nSelect account (1-5, or p): ');
+  // Options
+  console.log(c('dim', '\nOther Options:'));
+  console.log(`  p. Import with Private Key`);
+  console.log(`  m. Account Manager (create/manage accounts)`);
+  console.log(`  0. Cancel`);
+  
+  const totalAccounts = allAccounts.length;
+  const choice = await ask(`\nSelect (1-${totalAccounts}, p, m, or 0): `);
+  
+  if (choice === '0' || !choice.trim()) {
+    return;
+  }
+  
+  if (choice.toLowerCase() === 'm') {
+    await accountManager(rl);
+    return;
+  }
   
   if (choice.toLowerCase() === 'p') {
-    // Import custom private key
     const privateKey = await ask('Enter private key (0x...): ');
     
     if (!privateKey.startsWith('0x') || privateKey.length !== 66) {
@@ -181,7 +252,7 @@ async function selectAccount() {
     try {
       wallet = new ethers.Wallet(privateKey, provider);
       selectedAccount = {
-        name: 'My Wallet',
+        name: 'Imported Wallet',
         address: wallet.address,
         key: privateKey
       };
@@ -191,7 +262,7 @@ async function selectAccount() {
       }
       
       const balance = await provider.getBalance(wallet.address);
-      console.log(c('green', `\n✓ Imported wallet: ${wallet.address}`));
+      console.log(c('green', `\n✓ Imported: ${wallet.address}`));
       console.log(c('dim', `  Balance: ${formatEth(balance)} ETH`));
       
     } catch (error) {
@@ -202,13 +273,40 @@ async function selectAccount() {
   
   const index = parseInt(choice) - 1;
   
-  if (index >= 0 && index < TEST_ACCOUNTS.length) {
-    selectedAccount = TEST_ACCOUNTS[index];
-    wallet = new ethers.Wallet(selectedAccount.key, provider);
+  if (index >= 0 && index < totalAccounts) {
+    const acc = allAccounts[index];
+    
+    // If no key stored, ask for it
+    let key = acc.key;
+    if (!key) {
+      console.log(c('yellow', `\nNo private key stored for ${acc.name}.`));
+      key = await ask('Enter private key (0x...): ');
+      
+      if (!key.startsWith('0x') || key.length !== 66) {
+        console.log(c('red', 'Invalid private key format.'));
+        return;
+      }
+      
+      // Verify the key matches
+      try {
+        const testWallet = new ethers.Wallet(key);
+        if (testWallet.address.toLowerCase() !== acc.address.toLowerCase()) {
+          console.log(c('red', 'Private key does not match this address.'));
+          return;
+        }
+      } catch (error) {
+        console.log(c('red', `Invalid key: ${error.message}`));
+        return;
+      }
+    }
+    
+    selectedAccount = { ...acc, key };
+    wallet = new ethers.Wallet(key, provider);
     if (CONTRACT_ADDRESS) {
       contract = new ethers.Contract(CONTRACT_ADDRESS, POS_ABI, wallet);
     }
-    console.log(c('green', `\n✓ Selected: ${selectedAccount.name}`));
+    console.log(c('green', `\n✓ Selected: ${acc.name}`));
+    console.log(c('dim', `  Address: ${acc.address}`));
   } else {
     console.log(c('red', 'Invalid selection'));
   }
@@ -634,6 +732,35 @@ ${c('yellow', 'Query staking events (requires contract):')}
   ctx.events = await contract.queryFilter('Staked', 0)
   ctx.events.forEach(e => console.log(formatAddr(e.args[0]), 'staked', formatEth(e.args[1]), 'ETH'))
 `,
+    deploy: `
+${c('cyan', '🚀 DEPLOY & CONNECT TO CONTRACTS')}
+${'─'.repeat(40)}
+${c('yellow', 'Deploy a compiled contract (one-liner):')}
+  ctx.c = await deploy('student/HouseSale_102945.sol/HouseSale', wallet.address, ethers.ZeroAddress)
+
+${c('yellow', 'Deploy step by step:')}
+  ctx.artifact = loadArtifact('student/HouseSale_102945.sol/HouseSale')
+  ctx.factory = new ethers.ContractFactory(ctx.artifact.abi, ctx.artifact.bytecode, wallet)
+  ctx.c = await ctx.factory.deploy(wallet.address, ethers.ZeroAddress)
+  await ctx.c.waitForDeployment()
+  console.log('Address:', await ctx.c.getAddress())
+
+${c('yellow', 'Connect to an existing contract (by address + ABI):')}
+  ctx.abi = ['function propertyAddress() view returns (string)', 'function salePrice() view returns (uint256)']
+  ctx.c = new ethers.Contract('0xPASTE_ADDRESS', ctx.abi, wallet)
+  console.log(await ctx.c.propertyAddress())
+
+${c('yellow', 'Connect using a full artifact:')}
+  ctx.artifact = loadArtifact('student/HouseSale_102945.sol/HouseSale')
+  ctx.c = new ethers.Contract('0xPASTE_ADDRESS', ctx.artifact.abi, wallet)
+
+${c('yellow', 'Read a file (e.g. deployments):')}
+  ctx.deps = JSON.parse(fs.readFileSync('contracts/student/deployments.json', 'utf8'))
+  console.table(ctx.deps.map(d => ({ name: d.contractName, address: d.address })))
+
+${c('dim', 'Note: contract paths are relative to artifacts/contracts/')}
+${c('dim', 'Constructor args go after the path in deploy()')}
+`,
     investigate: `
 ${c('cyan', '🕵️ INVESTIGATION WORKFLOWS')}
 ${'─'.repeat(40)}
@@ -692,6 +819,15 @@ ${c('bright', 'Available variables:')}
   wallet    - Your account (can send tx)
   contract  - PoS contract instance
   ethers    - ethers.js library
+  fs        - Node.js file system module
+
+${c('bright', 'Helper functions:')}
+  formatEth(wei)     - Convert wei to ETH string
+  parseEth(eth)      - Convert ETH string to wei
+  formatAddr(addr)   - Shorten address for display
+  toDate(timestamp)  - Convert block timestamp to date
+  ${c('cyan', 'loadArtifact(path)  - Load a compiled contract artifact')}
+  ${c('cyan', 'deploy(path, ...args) - Deploy a compiled contract')}
 
 ${c('bright', 'Commands:')}
   help              - Show this message
@@ -703,14 +839,23 @@ ${c('bright', 'Commands:')}
   help utils        - Utility functions
   ${c('cyan', 'help forensics    - Blockchain forensics/analysis')}
   ${c('cyan', 'help investigate  - Investigation workflows')}
-  vars              - Show stored variables
+  ${c('cyan', 'help deploy       - Deploy & connect to contracts')}
+  vars              - Show stored variables (wallet, contract, selectedAccount)
   clear             - Clear stored variables
   exit              - Return to menu
+
+${c('bright', 'Addresses:')}
+  Set CONTRACT_ADDRESS: export CONTRACT_ADDRESS="0x..." before starting
+  Switch accounts: Main menu option 5 (Select account) or 10 (Account Manager)
 
 ${c('bright', 'Quick examples:')}
   await provider.getBlockNumber()
   await provider.getBalance(wallet.address)
   await contract.totalStaked()
+
+${c('bright', 'Deploy a contract:')}
+  ctx.c = await deploy('student/HouseSale_102945.sol/HouseSale', wallet.address, ethers.ZeroAddress)
+  console.log(await ctx.c.propertyAddress())
 
 ${c('bright', 'Storing variables:')}
   ctx.target = '0xf39F...'           // Store a variable
@@ -725,6 +870,9 @@ ${c('dim', 'See PLAYGROUND_TUTORIAL.md for full documentation')}
 async function playground() {
   console.log(c('cyan', '\n🎮 Playground Mode (Analyst Console)\n'));
   console.log('─'.repeat(50));
+  console.log(`Active account: ${wallet ? wallet.address : 'none'}`);
+  console.log(`Contract: ${CONTRACT_ADDRESS && CONTRACT_ADDRESS.length === 42 ? CONTRACT_ADDRESS : 'not set'}`);
+  console.log('─'.repeat(50));
   console.log('Interactive JavaScript console with blockchain access');
   console.log('Variables persist between commands!');
   console.log(`Type ${c('yellow', 'help')} for examples, ${c('yellow', 'help forensics')} for analyst tools`);
@@ -738,7 +886,7 @@ async function playground() {
   }
   
   // Persistent context - using globalThis for true persistence
-  const builtIns = ['provider', 'wallet', 'contract', 'ethers', 'formatEth', 'parseEth', 'formatAddr', 'toDate', 'console', 'ctx'];
+  const builtIns = ['provider', 'wallet', 'contract', 'ethers', 'fs', 'formatEth', 'parseEth', 'formatAddr', 'toDate', 'loadArtifact', 'deploy', 'console', 'ctx'];
   
   // Create a simple context object that we'll use with `with` statement alternative
   globalThis.ctx = globalThis.ctx || {};
@@ -749,10 +897,49 @@ async function playground() {
   ctx.wallet = wallet;
   ctx.contract = contract;
   ctx.ethers = ethers;
+  ctx.fs = fs;
   ctx.formatEth = (wei) => ethers.formatEther(wei);
   ctx.parseEth = (eth) => ethers.parseEther(eth);
   ctx.formatAddr = (addr) => addr ? `${addr.slice(0,6)}...${addr.slice(-4)}` : 'null';
   ctx.toDate = (ts) => new Date(Number(ts) * 1000).toLocaleString();
+  
+  // Helper: load a compiled contract artifact by name
+  // Usage: ctx.artifact = loadArtifact('student/HouseSale_102945.sol/HouseSale')
+  //    or: ctx.artifact = loadArtifact('PoS.sol/PoSSimulator')
+  ctx.loadArtifact = (contractPath) => {
+    const fullPath = path.join(PROJECT_ROOT, 'artifacts', 'contracts', contractPath + '.json');
+    if (!fs.existsSync(fullPath)) {
+      // Try searching for the artifact
+      const dir = path.dirname(fullPath);
+      if (fs.existsSync(dir)) {
+        const files = fs.readdirSync(dir).filter(f => f.endsWith('.json') && !f.includes('dbg'));
+        if (files.length === 1) {
+          const found = path.join(dir, files[0]);
+          console.log(c('dim', `  Found: ${path.relative(PROJECT_ROOT, found)}`));
+          return JSON.parse(fs.readFileSync(found, 'utf8'));
+        }
+        if (files.length > 1) {
+          console.log(c('yellow', `  Multiple artifacts in ${path.relative(PROJECT_ROOT, dir)}:`));
+          files.forEach(f => console.log(c('dim', `    - ${f}`)));
+        }
+      }
+      throw new Error(`Artifact not found: ${fullPath}\n  Run 'npx hardhat compile' from project root first.`);
+    }
+    return JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+  };
+  
+  // Helper: deploy a compiled contract
+  // Usage: ctx.deployed = await deploy('student/HouseSale_102945.sol/HouseSale', arg1, arg2)
+  ctx.deploy = async (contractPath, ...args) => {
+    const artifact = ctx.loadArtifact(contractPath);
+    const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode, wallet);
+    console.log(c('dim', `  Deploying ${contractPath}...`));
+    const deployed = await factory.deploy(...args);
+    await deployed.waitForDeployment();
+    const addr = await deployed.getAddress();
+    console.log(c('green', `  ✅ Deployed to: ${addr}`));
+    return deployed;
+  };
   
   while (true) {
     const code = await ask(c('green', '> '));
@@ -770,12 +957,13 @@ async function playground() {
       continue;
     }
     if (code.toLowerCase() === 'vars') {
+      console.log(c('cyan', 'Active identity:'));
+      console.log(`  ${c('yellow', 'wallet')}: ${wallet ? wallet.address : 'null'}`);
+      console.log(`  ${c('yellow', 'selectedAccount')}: ${selectedAccount ? `${selectedAccount.name} (${selectedAccount.address})` : 'null'}`);
+      console.log(`  ${c('yellow', 'contract')}: ${contract ? CONTRACT_ADDRESS : 'null (set CONTRACT_ADDRESS)'}`);
       const userVars = Object.keys(ctx).filter(k => !builtIns.includes(k));
-      if (userVars.length === 0) {
-        console.log(c('dim', 'No user variables defined yet.'));
-        console.log(c('dim', 'Try: ctx.target = "0x..." or use let/const'));
-      } else {
-        console.log(c('cyan', 'Stored variables (access via ctx.name):'));
+      if (userVars.length > 0) {
+        console.log(c('cyan', '\nStored variables (access via ctx.name):'));
         userVars.forEach(k => {
           const v = ctx[k];
           const type = typeof v;
@@ -783,6 +971,8 @@ async function playground() {
                          type === 'bigint' ? v.toString() + 'n' : String(v).slice(0, 50);
           console.log(`  ${c('yellow', 'ctx.' + k)}: ${preview}`);
         });
+      } else {
+        console.log(c('dim', '\nNo user variables. Try: ctx.target = "0x..."'));
       }
       continue;
     }
@@ -798,7 +988,7 @@ async function playground() {
       // Simple approach: execute code with ctx available
       // Users store persistent vars with ctx.varName = value
       const result = await eval(`(async () => {
-        const { provider, wallet, contract, ethers, formatEth, parseEth, formatAddr, toDate } = ctx;
+        const { provider, wallet, contract, ethers, fs, formatEth, parseEth, formatAddr, toDate, loadArtifact, deploy } = ctx;
         return ${code};
       })()`);
       
@@ -809,7 +999,7 @@ async function playground() {
       // If expression failed, try as statement
       try {
         await eval(`(async () => {
-          const { provider, wallet, contract, ethers, formatEth, parseEth, formatAddr, toDate } = ctx;
+          const { provider, wallet, contract, ethers, fs, formatEth, parseEth, formatAddr, toDate, loadArtifact, deploy } = ctx;
           ${code};
         })()`);
       } catch (stmtError) {
@@ -853,8 +1043,8 @@ async function mainMenu() {
     console.log(c('bright', '╔════════════════════════════════════════════════╗'));
     console.log(c('bright', '║     🔗 Interactive Blockchain CLI              ║'));
     console.log(c('bright', '╚════════════════════════════════════════════════╝'));
-    console.log(`\n${c('dim', `Connected to: ${RPC_URL}`)}`);
-    console.log(`${c('dim', `Account: ${selectedAccount.name} (${selectedAccount.address.slice(0, 10)}...)`)}`);
+    console.log(`\n${c('dim', `RPC: ${RPC_URL}`)}`);
+    printStatusBanner();
     
     console.log(c('cyan', '\n📊 Explore'));
     console.log('  1. Network info');
@@ -863,7 +1053,7 @@ async function mainMenu() {
     console.log('  4. Transaction lookup');
     
     console.log(c('cyan', '\n💸 Transact'));
-    console.log('  5. Select account');
+    console.log('  5. Switch account (quick select)');
     console.log('  6. Send ETH');
     
     if (CONTRACT_ADDRESS) {
@@ -876,7 +1066,14 @@ async function mainMenu() {
     console.log('  9. Contract Builder Lab');
     
     console.log(c('cyan', '\n👤 Identity'));
-    console.log('  10. Account Manager (generate/import wallet)');
+    console.log('  10. Account Manager (create/fund accounts)');
+    
+    console.log(c('cyan', '\n🔍 Forensics'));
+    console.log('  11. Ransomware Investigation Lab');
+    console.log('  12. Advanced Ransomware Lab (Multi-Victim)');
+    
+    console.log(c('cyan', '\n📚 Learning'));
+    console.log('  13. Token Concepts (FT vs NFT)');
     
     console.log(c('dim', '\n  0. Exit'));
     
@@ -893,6 +1090,9 @@ async function mainMenu() {
       case '8': await playground(); break;
       case '9': await builderWizard(rl); await pause(); break;
       case '10': await accountManager(rl); break;
+      case '11': await runInvestigation(rl); await pause(); break;
+      case '12': await runAdvancedInvestigation(rl); await pause(); break;
+      case '13': await runTokenConceptsLab(rl); await pause(); break;
       case '0':
       case 'exit':
       case 'quit':

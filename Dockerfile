@@ -15,6 +15,9 @@ RUN npm ci
 # Copy frontend source
 COPY frontend/ ./
 
+# Copy lab docs so they're served at /docs/*.md and displayed in GUI
+COPY docs/ ./public/docs/
+
 # Build frontend for production
 RUN npm run build
 

@@ -4,14 +4,38 @@ A comprehensive educational platform that teaches Ethereum, smart contracts, and
 
 ## 📋 Table of Contents
 
+- [Tools & Tech Stack](#-tools--tech-stack)
 - [Prerequisites](#-prerequisites)
-- [Quick Start Options](#-quick-start-options)
-- [Docker Deployment](#-docker-deployment)
+- [Getting Started](#-getting-started)
+- [Deployment Options](#-deployment-options)
 - [For Instructors](#-for-instructors)
 - [For Students](#-for-students)
 - [Running the Lab](#-running-the-lab)
 - [Lab Exercises](#-lab-exercises)
 - [Troubleshooting](#-troubleshooting)
+
+## 🛠 Tools & Tech Stack
+
+| Tool | Purpose |
+|------|---------|
+| **Node.js** (v18+) | Runtime for all scripts and tooling |
+| **npm** | Package manager; installs dependencies and runs scripts |
+| **Hardhat** | Local Ethereum node, contract compilation, deployment |
+| **ethers.js** | Blockchain interaction (wallets, contracts, RPC) |
+| **Vite + React** | Frontend build tool and UI framework |
+| **Docker** | Optional containerized deployment (instructor/student modes) |
+| **PowerShell** | Used by `start-lab.ps1` for one-command lab launch (Windows) |
+| **ngrok** | Optional tunnel for remote student access |
+| **Git** | Clone and version control |
+
+**Key npm scripts** (from root `package.json`):
+
+- `npm run chain` — Start Hardhat blockchain node (port 8545)
+- `npm run deploy` — Deploy smart contracts to local node
+- `npm run web` — Start Vite dev server (port 5173)
+- `npm run build` — Compile contracts, copy artifacts, build frontend
+- `npm run test` — Run Hardhat tests
+- `npm run lab1` … `lab5` — CLI forensics labs
 
 ## 🔧 Prerequisites
 
@@ -19,30 +43,42 @@ A comprehensive educational platform that teaches Ethereum, smart contracts, and
 - **Git** - [Download](https://git-scm.com/)
 - **Web Browser** (Chrome, Firefox, Edge)
 
-## 🚀 Quick Start Options
+For Docker deployment: **Docker Desktop** - [Download](https://www.docker.com/products/docker-desktop/)
 
-### Option 1: GitHub Codespaces (Recommended - No Installation)
+## 🚀 Getting Started
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/alld0wnh1ll/ethereum-lab)
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd blockchain_web
+   ```
 
-1. Click the badge above and wait ~30 seconds
-2. Everything is pre-installed and ready to use
-3. **Free for students** with GitHub Student Pack
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+   This installs root dependencies and runs `postinstall` to install frontend dependencies.
 
-### Option 2: Local Development (Windows/Mac/Linux)
+3. **Choose your path**
+   - **Instructor** (host the blockchain): Use [Docker](#docker-deployment) or [PowerShell](#for-instructors)
+   - **Student** (connect to instructor): Use [Docker student mode](#student-mode-frontend-only) or [PowerShell student mode](#for-students)
 
-Clone and run locally on your machine.
+## 📦 Deployment Options
 
-### Option 3: Docker Deployment
+| Method | Best For | Requirements |
+|--------|----------|--------------|
+| **Docker** | Classrooms, consistent setup, minimal local install | Docker Desktop |
+| **PowerShell** (`start-lab.ps1`) | Windows instructors/students, quick local dev | Node.js, PowerShell |
+| **Manual** | Custom workflows, debugging | Node.js, run `chain` → `deploy` → `web` |
 
-Use Docker for consistent, reproducible deployments.
+---
 
 ## 🐳 Docker Deployment
 
-Docker provides the easiest way to deploy the Ethereum Immersive Trainer in a classroom or online environment.
+Docker provides the easiest way to deploy the Ethereum Immersive Trainer in a classroom or online environment. No need to install Node.js locally—everything runs inside containers.
 
 ### Prerequisites for Docker
-- **Docker** - [Download](https://www.docker.com/products/docker-desktop/)
+- **Docker Desktop** - [Download](https://www.docker.com/products/docker-desktop/)
 - **Docker Compose** (included with Docker Desktop)
 
 ### Instructor Mode (Runs Blockchain + Frontend)
@@ -101,6 +137,23 @@ docker-compose down
 INSTRUCTOR_RPC_URL=http://192.168.1.100:8545 docker-compose -f docker-compose.student.yml up --build
 ```
 
+### Manual Deployment (No Docker)
+
+If you prefer to run everything locally without Docker:
+
+```bash
+# Terminal 1: Start blockchain
+npm run chain
+
+# Terminal 2: Deploy contracts (after chain is ready)
+npm run deploy
+
+# Terminal 3: Start frontend
+npm run web
+```
+
+Then open `http://localhost:5173`. The contract address appears in the deploy output.
+
 ### Getting the Contract Address
 
 After starting the instructor container, the contract address is available at:
@@ -112,20 +165,22 @@ Share this address with your students!
 
 ## 👨‍🏫 For Instructors
 
-### Step 1: Clone the Repository
+> **New instructor?** See the **[Instructor Setup Guide](docs/INSTRUCTOR_SETUP.md)** for a complete walkthrough from clone to running lab. For ready-made lesson plans across two 1-hour blocks (Beginner, Intermediate, Expert), see **[Instructor Lab Scenarios](docs/INSTRUCTOR_LAB_SCENARIOS.md)**.
+
+**Two ways to host the lab:**
+
+1. **Docker** (recommended): `docker-compose up --build` — see [Docker Deployment](#-docker-deployment) above.
+2. **PowerShell** (Windows): Use `start-lab.ps1` below.
+
+### Using start-lab.ps1 (Windows)
+
 ```bash
+# Clone and install (if not done)
 git clone <repository-url>
 cd blockchain_web
-```
-
-### Step 2: Install Dependencies
-```bash
 npm install
-```
 
-### Step 3: Start the Lab Environment
-```bash
-# For Windows PowerShell
+# Start instructor mode
 .\start-lab.ps1 -Mode instructor
 
 # For remote students (via internet)
@@ -138,32 +193,39 @@ This automatically:
 - ✅ Opens instructor dashboard at `http://localhost:5173/?mode=instructor`
 - ✅ Displays contract address and connection info
 
-### Step 4: Share Connection Information
+### Share Connection Information
 - **Contract Address**: Shown in terminal output (starts with 0x...)
 - **RPC URL**: `http://YOUR_IP:8545` (for local) or ngrok URL (for remote)
 - **Dashboard URL**: `http://YOUR_IP:5173` (for local) or ngrok URL (for remote)
 
 ## 👨‍🎓 For Students
 
-### Option A: Connect to Instructor's Lab
+**Three ways to connect:**
+
+### Option A: Run Frontend Locally (PowerShell on Windows)
+
 ```bash
-# Clone repository
 git clone <repository-url>
 cd blockchain_web
-
-# Install dependencies
 npm install
-
-# Run student setup (Windows PowerShell)
 .\start-lab.ps1 -Mode student
 ```
 
 When prompted:
 1. Enter the **Contract Address** from your instructor
-2. Enter the **RPC URL** from your instructor
+2. Enter the **RPC URL** from your instructor (e.g. `http://INSTRUCTOR_IP:8545` or ngrok URL)
 
-### Option B: Use Instructor's Hosted Frontend
-1. Open the URL provided by your instructor
+### Option B: Run Frontend via Docker
+
+```bash
+INSTRUCTOR_RPC_URL=http://<instructor-ip>:8545 docker-compose -f docker-compose.student.yml up --build
+```
+
+Then open `http://localhost:5173` and enter the contract address when prompted.
+
+### Option C: Use Instructor's Hosted Frontend
+
+1. Open the URL provided by your instructor (e.g. `http://INSTRUCTOR_IP:5173`)
 2. Enter the Contract Address and RPC URL in the connection fields
 3. Click "Request 5 ETH" to get started
 
@@ -240,6 +302,12 @@ The CLI labs provide hands-on blockchain forensics training. Navigate to `script
    - Track transfers between addresses
    - Calculate total value moved
    - Identify transaction patterns
+
+### Write and Deploy Your First Contract
+
+New to Solidity? Follow the step-by-step guide to **write a simple smart contract** and **deploy it** to the local blockchain:
+
+📖 **[Smart Contract Guide](docs/SMART_CONTRACT_GUIDE.md)** — Write SimpleStorage in Solidity, compile, deploy, and interact.
 
 ### Smart Contract Builder Lab
 
