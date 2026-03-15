@@ -899,41 +899,66 @@ export function InstructorView({ provider, posAddress, rpcUrl, wallet, onOpenTer
                 }}>
                   <span style={{fontFamily: 'monospace'}}>{req.address.slice(0, 10)}...{req.address.slice(-8)}</span>
                   {req.nickname && <span style={{color: '#64748b'}}>({req.nickname})</span>}
-                  <button
-                    onClick={async () => {
-                      setFundAddress(req.address);
-                      try {
-                        setIsActionInProgress(true);
-                        const bankSigner = rpcClient.getBankSigner();
-                        if (!bankSigner) return;
-                        const amt = parseFloat(fundAmount) || 5;
-                        const tx = await bankSigner.sendTransaction({
-                          to: req.address,
-                          value: ethers.parseEther(String(amt))
-                        });
-                        await tx.wait();
-                        showStatus(`✅ Sent ${amt} ETH to ${req.nickname || req.address.slice(0, 10)}...`);
-                        await fetch(`/lab-api/fund-request/${req.id}`, { method: 'DELETE' });
-                        setFundRequests(prev => prev.filter(r => r.id !== req.id));
-                      } catch (e) {
-                        showStatus('❌ ' + (e.message || e.reason));
-                      } finally {
-                        setIsActionInProgress(false);
-                      }
-                    }}
-                    disabled={isActionInProgress}
-                    style={{
-                      padding: '4px 10px',
-                      background: '#10b981',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: isActionInProgress ? 'not-allowed' : 'pointer',
-                      fontSize: '0.75rem'
-                    }}
-                  >
-                    Fund {fundAmount || 5} ETH
-                  </button>
+                  <div style={{display: 'flex', gap: '6px', alignItems: 'center'}}>
+                    <button
+                      onClick={async () => {
+                        setFundAddress(req.address);
+                        try {
+                          setIsActionInProgress(true);
+                          const bankSigner = rpcClient.getBankSigner();
+                          if (!bankSigner) return;
+                          const amt = parseFloat(fundAmount) || 5;
+                          const tx = await bankSigner.sendTransaction({
+                            to: req.address,
+                            value: ethers.parseEther(String(amt))
+                          });
+                          await tx.wait();
+                          showStatus(`✅ Sent ${amt} ETH to ${req.nickname || req.address.slice(0, 10)}...`);
+                          await fetch(`/lab-api/fund-request/${req.id}`, { method: 'DELETE' });
+                          setFundRequests(prev => prev.filter(r => r.id !== req.id));
+                        } catch (e) {
+                          showStatus('❌ ' + (e.message || e.reason));
+                        } finally {
+                          setIsActionInProgress(false);
+                        }
+                      }}
+                      disabled={isActionInProgress}
+                      style={{
+                        padding: '4px 10px',
+                        background: '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: isActionInProgress ? 'not-allowed' : 'pointer',
+                        fontSize: '0.75rem'
+                      }}
+                    >
+                      Fund {fundAmount || 5} ETH
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await fetch(`/lab-api/fund-request/${req.id}`, { method: 'DELETE' });
+                          setFundRequests(prev => prev.filter(r => r.id !== req.id));
+                          showStatus('Request denied');
+                        } catch (e) {
+                          showStatus('❌ ' + (e.message || e.reason));
+                        }
+                      }}
+                      disabled={isActionInProgress}
+                      style={{
+                        padding: '4px 10px',
+                        background: '#64748b',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: isActionInProgress ? 'not-allowed' : 'pointer',
+                        fontSize: '0.75rem'
+                      }}
+                    >
+                      Deny
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
