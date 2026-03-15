@@ -78,6 +78,8 @@ The app remembers the contract address in your browser. You only need to change 
 
 Your **wallet** is your on-screen account: it has an **address** (like an account number) and a **balance** (test ETH). You need a wallet before you can request ETH, send, or stake.
 
+**New students:** If you see a **"Create your first wallet"** card, you must create or import a wallet before receiving test ETH. The lab tracks this per network (by IP) so each new student creates their own wallet.
+
 ### Creating a new wallet
 
 1. On the **Live** tab, look at the left sidebar under **“Live Network”**.
@@ -127,13 +129,13 @@ You can have multiple wallets (identities) and switch between them in the sideba
 
 ## 6. Getting test ETH
 
-The lab uses **test ETH** only (no real money). You get it from a **faucet** in the app.
+The lab uses **test ETH** only (no real money). Only the instructor can issue funds.
 
 1. Make sure you are **connected** and have a **wallet** (see above).
-2. In the Live view, click the green **🚰 Get 5 ETH** button (in the quick actions row).
-3. Wait a few seconds. You should see a message like **“Received 5 ETH from faucet!”** and your balance will increase.
+2. **Request funds:** Click **📤 Request funds** — your instructor will be notified and can fund you with one click from their dashboard.
+3. **Or copy your address:** Use **📋 Copy** to copy your address and share it with your instructor. They can paste it in the "Fund by address" section.
 
-If you see an error, check that the connection is OK and that the instructor’s node (and faucet) is running. You can click **Get 5 ETH** again if the faucet allows it.
+If you see an error, check that the connection is OK and that the instructor’s node is running.
 
 ---
 
@@ -211,7 +213,7 @@ This page is optional for normal “use the smart contract in the Live tab” st
 | **“Connect wallet first”** | Create a wallet with **New** or **Import** in the sidebar under “👤 Your Account”. |
 | **“Insufficient balance”** | Click **🚰 Get 5 ETH** to get test ETH. |
 | **“Must wait Xs more” (staking)** | Wait for the minimum stake time or unbonding countdown before withdrawing. |
-| **Get 5 ETH does nothing / error** | Instructor’s node and faucet must be running; ask them to check. |
+| **Request funds / Get 5 ETH does nothing** | Instructor’s node must be running; ask them to check. Use **Request funds** to notify them. |
 | **Can’t see classmates** | Others must be on the same RPC and contract; they may need to stake or interact once to appear. |
 
 For more technical details (RPC, CORS, deployment), see [RPC_CONNECTION_TECHNICAL.md](RPC_CONNECTION_TECHNICAL.md) and [ARCHITECTURE.md](ARCHITECTURE.md).

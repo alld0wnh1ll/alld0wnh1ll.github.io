@@ -105,7 +105,18 @@ Show live contract activity: `http://<YOUR-IP>:5173/dashboard.html`
 ## Emergency Commands
 
 ```bash
-# Restart everything
+# Full reset (fresh node for new class)
+# Docker:
+npm run reset:docker
+
+# Local (PowerShell):
+.\start-lab.ps1 -Mode reset
+# Then: .\start-lab.ps1 -Mode instructor
+
+# Or reset + start in one:
+.\start-lab.ps1 -Mode instructor -Reset
+
+# Restart everything (no data wipe)
 docker compose down && docker compose up --build
 
 # Check if node is running

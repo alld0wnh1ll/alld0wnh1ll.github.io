@@ -30,7 +30,8 @@ This document describes how the Ethereum Immersive Trainer is connected: fronten
 ```
 
 - **Instructor** runs the blockchain node and (optionally) the frontend. Students use the same RPC URL and contract address.
-- **Students** either open the instructor’s frontend URL or run the frontend locally and point it at the instructor’s RPC and contract address.
+- **Lab API** (port 3000): session check (instructor IP restriction), fund requests, wallet-creation tracking per IP. Only the instructor’s IP can access `?mode=instructor`.
+- **Students** either open the instructor’s frontend URL or run the frontend locally and point it at the instructor’s RPC and contract address. New students (by IP) must create a wallet first; they can click **Request funds** to notify the instructor.
 - **CLI Labs** (optional) run on student machines and connect to the same RPC (and contracts) via environment variables.
 
 ---

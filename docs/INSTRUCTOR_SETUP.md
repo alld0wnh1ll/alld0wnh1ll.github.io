@@ -237,8 +237,8 @@ Contract:  [paste from terminal banner]
 1. Open the **Frontend URL** in a browser.
 2. Click the **Live** tab.
 3. In **Connection Setup**, enter the **RPC URL** and **Contract Address**.
-4. In the sidebar, click **New** to create a wallet.
-5. Click **Get 5 ETH** to receive test funds.
+4. **Create wallet:** New students must create a wallet first (click **Create or import wallet**).
+5. **Request funds:** Click **Request funds** to notify you — you'll see the request in your dashboard and can fund with one click.
 6. They can then stake, send ETH, and use the chat.
 
 For detailed student instructions, share the [User Manual](MANUAL.md).
@@ -247,7 +247,24 @@ For detailed student instructions, share the [User Manual](MANUAL.md).
 
 ---
 
-## 8. Instructor Identity and Address Visibility
+## 8. Instructor Mode and IP Restriction
+
+**Instructor tab access:** Only the instructor's IP can use `?mode=instructor`. Students visiting that URL from their machines are redirected to the normal view.
+
+- **Docker:** Add your network IP to `INSTRUCTOR_IP` in docker-compose if you access via `http://YOUR-IP:5173?mode=instructor`:
+  ```yaml
+  environment:
+    - INSTRUCTOR_IP=127.0.0.1,::1,192.168.1.100
+  ```
+- **PowerShell (start-lab):** Your IP is set automatically.
+
+**Fund requests:** Students with 0 ETH can click **Request funds** in the Live tab. You'll see pending requests in the instructor dashboard and can fund with one click.
+
+**Full reset for new class:** Run `npm run reset:docker` (Docker) or `.\start-lab.ps1 -Mode reset` then `.\start-lab.ps1 -Mode instructor` (local). See [QUICK_REFERENCE.md](QUICK_REFERENCE.md#emergency-commands).
+
+---
+
+## 9. Instructor Identity and Address Visibility
 
 When you open the **Instructor** tab (`?mode=instructor`), you have full visibility over all addresses tied to the contract.
 
@@ -271,15 +288,16 @@ This lets you see which address has instructor privileges and which addresses ha
 
 ---
 
-## 9. Firewall (If Students Can't Connect)
+## 10. Firewall (If Students Can't Connect)
 
-If students get "connection refused" or timeouts, your firewall may be blocking ports 8545 and 5173.
+If students get "connection refused" or timeouts, your firewall may be blocking ports 8545, 5173, and 3000 (Lab API).
 
 ### Windows (PowerShell as Administrator)
 
 ```powershell
 netsh advfirewall firewall add rule name="Ethereum Trainer RPC" dir=in action=allow protocol=tcp localport=8545
 netsh advfirewall firewall add rule name="Ethereum Trainer Frontend" dir=in action=allow protocol=tcp localport=5173
+netsh advfirewall firewall add rule name="Ethereum Trainer Lab API" dir=in action=allow protocol=tcp localport=3000
 ```
 
 ### Linux (if using UFW)
@@ -287,6 +305,7 @@ netsh advfirewall firewall add rule name="Ethereum Trainer Frontend" dir=in acti
 ```bash
 sudo ufw allow 8545
 sudo ufw allow 5173
+sudo ufw allow 3000
 sudo ufw reload
 ```
 
@@ -296,7 +315,7 @@ Go to **System Preferences → Security & Privacy → Firewall** and ensure your
 
 ---
 
-## 10. Stopping and Restarting
+## 11. Stopping and Restarting
 
 **To stop the lab:**
 
@@ -313,9 +332,11 @@ Use `docker compose up` (without `--build`) if you haven't changed any code — 
 
 **Note:** Blockchain data is stored in Docker volumes. When you restart, the same contract address is reused, so students don't need to re-enter it unless you run `docker compose down -v` (which removes all data).
 
+**Full reset for new class:** Run `npm run reset:docker` to wipe blockchain data and start fresh.
+
 ---
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 | Problem | What to try |
 |---------|-------------|

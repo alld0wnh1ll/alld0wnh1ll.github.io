@@ -148,6 +148,7 @@ If time is limited:
 2. **Note your IP address** - Students need this to connect
 3. **Prepare the whiteboard** - Write: Contract Address, RPC URL, Frontend URL
 4. **Have backup plan** - If network issues occur, students can use the Learn tab locally
+5. **Full reset for new class** - Run `npm run reset:docker` (Docker) or `.\start-lab.ps1 -Mode reset` then instructor (local) to wipe blockchain data
 
 ### During Class
 
@@ -200,9 +201,12 @@ Good moments to share your screen:
 
 | Issue | Solution |
 |-------|----------|
+| "Must create wallet first" | New students (by IP) must create a wallet — no auto-assigned address. Click **Create or import wallet**. |
 | "Lost private key" | Cannot recover - demonstrate this is intentional, create new wallet |
-| "Balance shows 0" | Click "Get 5 ETH" or check if connected to correct RPC |
+| "Balance shows 0" | Click **Request funds** to notify instructor, or "Get 5 ETH" if faucet is available |
 | "Import not working" | Private key must include `0x` prefix |
+
+**Fund requests:** Students with 0 ETH can click **Request funds** — you'll see pending requests in the instructor dashboard and can fund with one click.
 
 ### Transaction Issues
 
