@@ -69,8 +69,12 @@ let provider = null;
 let currentAccount = null;
 
 // ============================================================================
-// ACCOUNT STORAGE
+// ACCOUNT STORAGE (with file locking for 16+ concurrent students)
 // ============================================================================
+
+const LOCK_FILE = path.join(PROJECT_ROOT, '.student-accounts.lock');
+const LOCK_RETRIES = 50;
+const LOCK_WAIT_MS = 100;
 
 function loadAccounts() {
   if (fs.existsSync(ACCOUNTS_FILE)) {
@@ -79,8 +83,46 @@ function loadAccounts() {
   return { students: [] };
 }
 
+function acquireLock() {
+  for (let i = 0; i < LOCK_RETRIES; i++) {
+    try {
+      const fd = fs.openSync(LOCK_FILE, 'wx');
+      fs.writeSync(fd, String(process.pid));
+      fs.closeSync(fd);
+      return true;
+    } catch (e) {
+      if (e.code !== 'EEXIST') throw e;
+      if (i === LOCK_RETRIES - 1) throw new Error('Could not acquire lock on student-accounts (another student may be creating an account)');
+    }
+    const end = Date.now() + LOCK_WAIT_MS;
+    while (Date.now() < end) { /* busy wait */ }
+  }
+  return false;
+}
+
+function releaseLock() {
+  try { fs.unlinkSync(LOCK_FILE); } catch (_) {}
+}
+
+/** Atomic read-modify-write for concurrent classroom use (16+ students) */
+function atomicUpdateAccounts(updater) {
+  acquireLock();
+  try {
+    const accounts = loadAccounts();
+    const updated = updater(accounts);
+    fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(updated, null, 2));
+  } finally {
+    releaseLock();
+  }
+}
+
 function saveAccounts(accounts) {
-  fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2));
+  acquireLock();
+  try {
+    fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2));
+  } finally {
+    releaseLock();
+  }
 }
 
 // ============================================================================
@@ -116,17 +158,18 @@ async function generateAccount() {
   console.log(color('dim', 'to import your account into the CLI or web interface.'));
   console.log(color('dim', '─────────────────────────────────────────────'));
   
-  // Save to accounts file (including private key for classroom convenience)
-  const accounts = loadAccounts();
-  accounts.students.push({
-    name: studentName.trim(),
-    address: wallet.address,
-    privateKey: wallet.privateKey,
-    createdAt: new Date().toISOString(),
-    funded: false,
-    fundedAmount: '0'
+  // Save to accounts file (atomic for 16+ concurrent students)
+  atomicUpdateAccounts((accounts) => {
+    accounts.students.push({
+      name: studentName.trim(),
+      address: wallet.address,
+      privateKey: wallet.privateKey,
+      createdAt: new Date().toISOString(),
+      funded: false,
+      fundedAmount: '0'
+    });
+    return accounts;
   });
-  saveAccounts(accounts);
   
   console.log(color('green', `\n✓ Account registered for: ${studentName}`));
   console.log(color('dim', '  Your instructor can now fund your account.'));

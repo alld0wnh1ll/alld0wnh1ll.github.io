@@ -1,20 +1,43 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ethers } from 'ethers'
 import { connectWallet, checkNodeStatus, getGuestWallet, getWalletInfo, importWallet, generateNewWallet, setWalletNickname, getWalletList, setActiveWallet } from './web3'
 import PoSABI from './PoS.json'
 import { InstructorView } from './views/InstructorView'
 import { DiagnosticsView } from './views/DiagnosticsView'
 import { TokenConceptsView } from './views/TokenConceptsView'
+import { BeaconChainLabView } from './views/BeaconChainLabView'
+import { ContractBuilderLabView } from './views/ContractBuilderLabView'
+import { TokenizationLabView } from './views/TokenizationLabView'
 import { LABS, getLabById } from './constants/labs'
+import { ROLE_DOCTRINES } from './constants/roleDoctrines'
+import { ROLE_CONTRACT_TEMPLATES } from './constants/roleContractTemplates'
 import LabDetailView from './components/LabDetailView'
+import ContractLab from './components/ContractLab'
 import { blockchainSync } from './lib/BlockchainSync'
+import { copyToClipboard } from './lib/clipboard'
 import AccountManager from './components/AccountManager'
+import InlineTerminal from './components/InlineTerminal'
+import NodeGraph from './components/NodeGraph'
+import { ChainSearch } from './components/ChainSearch'
+import { RoleHub } from './components/RoleHub'
+import { PoSLeaderboard } from './components/PoSLeaderboard'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import './index.css'
+
+// Open Lab Terminal in new window/tab (each call opens a new one for multiple terminals)
+// Pass rpcUrl so terminal can connect to instructor's node
+function openLabTerminal(rpcUrl) {
+  const base = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/';
+  let path = base.replace(/\/$/, '') + '/terminal';
+  if (rpcUrl && rpcUrl.trim()) {
+    path += '?rpc=' + encodeURIComponent(rpcUrl.trim());
+  }
+  window.open(path, 'lab-terminal-' + Date.now(), 'noopener,noreferrer,width=1000,height=700,scrollbars=yes');
+}
 
 // Account 0 = deployer = bank/faucet (Hardhat's first test account).
 // The deployer holds onlyInstructor privileges; the bank sends test ETH to students.
-const BANK_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-
 // ============= KM METADATA & PROVENANCE =============
 const CONTENT_METADATA = {
     version: "1.1.2",
@@ -214,8 +237,9 @@ const FeedbackButton = ({ section, onFeedback }) => {
     );
 };
 
-// Social Proof Component - Shows community activity
+// Social Proof Component - Shows community activity (compact, expandable)
 const SocialProof = ({ validators, messages, stakersCount }) => {
+    const [expanded, setExpanded] = useState(false);
     const [localStats, setLocalStats] = useState({ quizzes: 0, sessions: 0 });
     
     useEffect(() => {
@@ -247,17 +271,37 @@ const SocialProof = ({ validators, messages, stakersCount }) => {
     
     const activeStudents = validators?.length || 0;
     const totalMessages = messages?.length || 0;
+    const participantCount = activeStudents || stakersCount || 0;
     
     return (
         <div style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '1rem',
-            padding: '1rem',
+            padding: '0.4rem 0.65rem',
+            marginBottom: '0.75rem',
             background: 'rgba(59, 130, 246, 0.05)',
-            borderRadius: '0.75rem',
+            borderRadius: '0.35rem',
             border: '1px solid rgba(59, 130, 246, 0.2)'
         }}>
+            <button
+                onClick={() => setExpanded(!expanded)}
+                style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#94a3b8',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    padding: 0
+                }}
+            >
+                <span>{expanded ? '▼' : '▶'}</span>
+                <span>{participantCount} participants</span>
+                {totalMessages > 0 && <span style={{color: '#64748b'}}>· {totalMessages} messages</span>}
+            </button>
+            {expanded && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(59,130,246,0.15)' }}>
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -309,168 +353,21 @@ const SocialProof = ({ validators, messages, stakersCount }) => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    padding: '8px 14px',
+                    padding: '6px 10px',
                     background: 'rgba(236, 72, 153, 0.1)',
-                    borderRadius: '20px'
+                    borderRadius: '0.35rem',
+                    fontSize: '0.8rem'
                 }}>
-                    <span style={{fontSize: '1.1rem'}}>✅</span>
-                    <span style={{color: '#f472b6', fontWeight: '600', fontSize: '0.9rem'}}>
-                        {localStats.quizzes} Quizzes Completed
-                    </span>
+                    <span>✅</span>
+                    <span style={{color: '#f472b6', fontWeight: '600'}}>{localStats.quizzes} Quizzes</span>
                 </div>
+            )}
+        </div>
             )}
         </div>
     );
 };
 
-// Post-Lab Evaluation Survey Component (SUS-inspired)
-const EvaluationSurvey = ({ onComplete }) => {
-    const [responses, setResponses] = useState({});
-    const [submitted, setSubmitted] = useState(false);
-    
-    const questions = [
-        { id: 'q1', text: 'I found the lab content easy to understand', category: 'usability' },
-        { id: 'q2', text: 'The learning objectives were clearly communicated', category: 'clarity' },
-        { id: 'q3', text: 'The interactive elements helped me learn', category: 'engagement' },
-        { id: 'q4', text: 'I feel confident I understand Ethereum staking now', category: 'learning' },
-        { id: 'q5', text: 'I would recommend this lab to others', category: 'nps' },
-        { id: 'q6', text: 'The pacing of the content was appropriate', category: 'pacing' }
-    ];
-    
-    const handleResponse = (qId, value) => {
-        setResponses({ ...responses, [qId]: value });
-    };
-    
-    const handleSubmit = () => {
-        const surveyData = {
-            responses,
-            completedAt: Date.now(),
-            sessionDuration: Date.now() - parseInt(localStorage.getItem('session_start') || Date.now())
-        };
-        localStorage.setItem('lab_evaluation', JSON.stringify(surveyData));
-        setSubmitted(true);
-        onComplete && onComplete(surveyData);
-    };
-    
-    const allAnswered = questions.every(q => responses[q.id] !== undefined);
-    
-    if (submitted) {
-        const avgScore = Object.values(responses).reduce((a, b) => a + b, 0) / questions.length;
-        return (
-            <div style={{
-                padding: '2rem',
-                background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(16, 185, 129, 0.1) 100%)',
-                borderRadius: '1rem',
-                border: '2px solid #22c55e',
-                textAlign: 'center'
-            }}>
-                <div style={{fontSize: '3rem', marginBottom: '1rem'}}>🎉</div>
-                <h3 style={{color: '#86efac', marginBottom: '0.5rem'}}>Thank You!</h3>
-                <p style={{color: '#cbd5e1', marginBottom: '1rem'}}>
-                    Your feedback helps us improve this lab for future students.
-                </p>
-                <div style={{
-                    display: 'inline-block',
-                    padding: '12px 24px',
-                    background: 'rgba(34, 197, 94, 0.2)',
-                    borderRadius: '8px',
-                    color: '#86efac'
-                }}>
-                    Your Average Rating: {avgScore.toFixed(1)} / 5
-                </div>
-            </div>
-        );
-    }
-    
-    return (
-        <div style={{
-            padding: '2rem',
-            background: '#1e293b',
-            borderRadius: '1rem',
-            border: '1px solid #334155'
-        }}>
-            <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem'}}>
-                <span style={{fontSize: '2rem'}}>📊</span>
-                <div>
-                    <h3 style={{margin: 0, color: '#f8fafc'}}>Lab Evaluation</h3>
-                    <p style={{margin: 0, fontSize: '0.9rem', color: '#94a3b8'}}>
-                        Help us improve! Rate your experience (1-5)
-                    </p>
-                </div>
-            </div>
-            
-            <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-                {questions.map(q => (
-                    <div key={q.id} style={{
-                        padding: '1rem',
-                        background: 'rgba(0,0,0,0.2)',
-                        borderRadius: '8px'
-                    }}>
-                        <div style={{color: '#e2e8f0', marginBottom: '0.75rem', fontSize: '0.95rem'}}>
-                            {q.text}
-                        </div>
-                        <div style={{display: 'flex', gap: '8px'}}>
-                            {[1, 2, 3, 4, 5].map(val => (
-                                <button
-                                    key={val}
-                                    onClick={() => handleResponse(q.id, val)}
-                                    style={{
-                                        flex: 1,
-                                        padding: '10px',
-                                        background: responses[q.id] === val 
-                                            ? 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' 
-                                            : '#0f172a',
-                                        border: responses[q.id] === val 
-                                            ? 'none' 
-                                            : '1px solid #334155',
-                                        borderRadius: '6px',
-                                        color: responses[q.id] === val ? 'white' : '#94a3b8',
-                                        cursor: 'pointer',
-                                        fontWeight: responses[q.id] === val ? 'bold' : 'normal',
-                                        transition: 'all 0.2s'
-                                    }}
-                                >
-                                    {val}
-                                </button>
-                            ))}
-                        </div>
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            fontSize: '0.7rem',
-                            color: '#64748b',
-                            marginTop: '4px'
-                        }}>
-                            <span>Strongly Disagree</span>
-                            <span>Strongly Agree</span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-            
-            <button
-                onClick={handleSubmit}
-                disabled={!allAnswered}
-                style={{
-                    marginTop: '1.5rem',
-                    width: '100%',
-                    padding: '1rem',
-                    background: allAnswered 
-                        ? 'linear-gradient(135deg, #10b981 0%, #34d399 100%)' 
-                        : '#374151',
-                    border: 'none',
-                    borderRadius: '8px',
-                    color: 'white',
-                    cursor: allAnswered ? 'pointer' : 'not-allowed',
-                    fontWeight: 'bold',
-                    fontSize: '1rem'
-                }}
-            >
-                {allAnswered ? '✅ Submit Evaluation' : `Answer all questions (${Object.keys(responses).length}/${questions.length})`}
-            </button>
-        </div>
-    );
-};
 
 // --- ORIENTATION CONTENT ---
 const INTRO_SECTIONS = [
@@ -505,7 +402,7 @@ const INTRO_SECTIONS = [
     {
         title: "🛠️ What You'll Do",
         bullets: [
-            "Generate your own wallet and receive test ETH from the faucet",
+            "Generate your own wallet and receive test ETH from your instructor",
             "Send transactions to classmates and watch blocks confirm",
             "Stake ETH to become a validator and earn rewards",
             "Participate in the class chat (stored on-chain!)",
@@ -1733,6 +1630,43 @@ function CLILabsView() {
                 <p style={{color: '#94a3b8', fontSize: '1.1rem', margin: 0}}>
                     Interactive tools for blockchain analysis and investigation
                 </p>
+                <div style={{display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '1rem', flexWrap: 'wrap'}}>
+                    <button
+                        onClick={() => openLabTerminal(rpcUrl)}
+                        style={{
+                            padding: '0.5rem 1rem',
+                            background: 'linear-gradient(135deg, #334155, #1e293b)',
+                            border: '1px solid #475569',
+                            borderRadius: '0.5rem',
+                            color: '#e2e8f0',
+                            fontSize: '0.9rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                        }}
+                    >
+                        <span>🖥️</span>
+                        <span>Open Lab Terminal</span>
+                    </button>
+                    <button
+                        onClick={() => openLabTerminal(rpcUrl)}
+                        style={{
+                            padding: '0.35rem 0.65rem',
+                            background: 'rgba(139, 92, 246, 0.15)',
+                            border: '1px solid rgba(139, 92, 246, 0.35)',
+                            borderRadius: '0.35rem',
+                            color: '#c4b5fd',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        + Another
+                    </button>
+                    <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                        Run interactive.js, Contract Builder, labs — each opens a new terminal
+                    </span>
+                </div>
             </div>
 
             {/* ====== STICKY SEARCH + NAV BAR ====== */}
@@ -7269,12 +7203,39 @@ function SimulationMode({ onComplete }) {
 
 // --- MAIN APP COMPONENT ---
 function App() {
-  // Check URL params for instructor mode
+  const navigate = useNavigate()
+  // Check URL params for instructor mode and student (live) view
   const urlParams = new URLSearchParams(window.location.search)
-  const isInstructor = urlParams.get('mode') === 'instructor'
-  
-  const [view, setView] = useState(isInstructor ? 'instructor' : 'intro'); // intro -> concepts -> explore -> sim -> live -> cli | instructor
+  const urlWantsInstructor = urlParams.get('mode') === 'instructor'
+  const viewFromUrl = urlParams.get('view')
+
+  // Session from Lab API: isInstructor (IP-checked), hasCreatedWallet (per-IP)
+  const [session, setSession] = useState({ isInstructor: false, hasCreatedWallet: true, loading: true })
+  useEffect(() => {
+    fetch('/lab-api/session').then(r => r.ok ? r.json() : null).then(data => {
+      if (data) setSession({ isInstructor: data.isInstructor, hasCreatedWallet: data.hasCreatedWallet, loading: false })
+      else setSession(prev => ({ ...prev, loading: false, hasCreatedWallet: true })) // Lab API unavailable: permissive
+    }).catch(() => setSession(prev => ({ ...prev, loading: false, hasCreatedWallet: true })))
+  }, [])
+
+  // Only allow instructor view if URL has mode=instructor AND session confirms instructor IP
+  const isInstructor = urlWantsInstructor && session.isInstructor && !session.loading
+
+  const [view, setView] = useState(
+    urlWantsInstructor ? 'instructor' : viewFromUrl === 'live' ? 'live' : viewFromUrl === 'beacon-lab' ? 'beacon-lab' : viewFromUrl === 'contract-builder-lab' ? 'contract-builder-lab' : viewFromUrl === 'tokenization-lab' ? 'tokenization-lab' : 'intro'
+  ); // intro -> concepts -> explore -> sim -> live -> beacon-lab -> contract-builder-lab -> tokenization-lab -> cli | instructor
   const [appMode, setAppMode] = useState('learning'); // 'learning' | 'live' | 'cli' | 'instructor' - top-level mode separation
+
+  // When session loads: if URL has ?mode=instructor but IP not allowed, strip param and redirect
+  useEffect(() => {
+    if (session.loading) return
+    if (urlWantsInstructor && !session.isInstructor) {
+      const u = new URL(window.location.href)
+      u.searchParams.delete('mode')
+      window.history.replaceState({}, '', u.toString())
+      setView(viewFromUrl === 'live' ? 'live' : viewFromUrl === 'beacon-lab' ? 'beacon-lab' : viewFromUrl === 'contract-builder-lab' ? 'contract-builder-lab' : viewFromUrl === 'tokenization-lab' ? 'tokenization-lab' : 'intro')
+    }
+  }, [session.loading, session.isInstructor, urlWantsInstructor, viewFromUrl])
   
   // --- LIVE MODE STATE ---
   // Auto-detect if accessing from remote (not localhost)
@@ -7327,41 +7288,41 @@ function App() {
   const [posAddress, setPosAddress] = useState(() => {
     const stored = localStorage.getItem("pos_addr");
     if (stored && stored.length === 42) return stored;
-    // Fallback: hardcoded address for local development
-    // This matches what's deployed by scripts/deploy.js
-    return "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707";
+    return "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e";
   })
   
-  // Auto-load contract config from Docker deployment (if available)
+  // Auto-load contract address and RPC URL from deploy config (Docker/sandbox writes /api/config.json)
   useEffect(() => {
-    const loadDockerConfig = async () => {
-      try {
-        // Try to fetch config from Docker-generated endpoint
-        const response = await fetch('/api/config.json');
-        if (response.ok) {
+    const loadConfig = async () => {
+      // Try Docker/sandbox config first (has rpcUrl + mode), then deploy-generated
+      for (const url of ['/api/config.json', '/contract-config.json']) {
+        try {
+          const response = await fetch(url);
+          if (!response.ok) continue;
           const config = await response.json();
-          console.log('[Config] Loaded Docker config:', config);
-          
-          // Auto-set contract address if not already set
-          if (config.contractAddress && !localStorage.getItem("pos_addr")) {
-            setPosAddress(config.contractAddress);
-            localStorage.setItem("pos_addr", config.contractAddress);
-            console.log('[Config] Auto-set contract address:', config.contractAddress);
+          const isStudent = config.mode === 'student' || config.role === 'student';
+          const isInstructor = config.mode === 'instructor' || config.role === 'instructor';
+          // Auto-set contract address
+          if (config.contractAddress && config.contractAddress.length === 42) {
+            const current = localStorage.getItem("pos_addr");
+            if (current !== config.contractAddress) {
+              console.log('[Config] Updating contract address:', current, '->', config.contractAddress);
+              setPosAddress(config.contractAddress);
+              localStorage.setItem("pos_addr", config.contractAddress);
+            }
           }
-          
-          // Auto-set RPC URL if in student mode
-          if (config.rpcUrl && config.mode === 'student') {
+          // Auto-set RPC URL for both student and instructor (virtualized sandbox auto-config)
+          if (config.rpcUrl && (isStudent || isInstructor)) {
             setRpcUrl(config.rpcUrl);
             localStorage.setItem("custom_rpc", config.rpcUrl);
-            console.log('[Config] Auto-set RPC URL:', config.rpcUrl);
+            console.log('[Config] RPC URL set from config:', config.rpcUrl, 'mode:', config.mode || config.role);
           }
-        }
-      } catch (e) {
-        // Config endpoint not available - normal for local development
-        console.log('[Config] Docker config not available (normal for local dev)');
+          if (config.contractAddress && config.contractAddress.length === 42) return;
+        } catch (e) { /* config not available */ }
       }
+      console.log('[Config] No deploy config found (using localStorage or fallback)');
     };
-    loadDockerConfig();
+    loadConfig();
   }, [])
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState("")
@@ -7395,21 +7356,26 @@ function App() {
   const [recipient, setRecipient] = useState("")
   const [sendAmount, setSendAmount] = useState("")
   
-  // Staking State
-  const [stakeAmount, setStakeAmount] = useState("1")
+  // Staking State (32 ETH = Ethereum mainnet validator minimum)
+  const [stakeAmount, setStakeAmount] = useState("32")
   
   // Transaction History
   const [txHistory, setTxHistory] = useState([])
-  const [myStake, setMyStake] = useState({ 
-    amount: '0', 
-    reward: '0',
-    slashCount: 0,
-    blocksProposed: 0,
-    missedAttestations: 0,
-    unbondingTime: 0,
-    minStakeDuration: 0,
-    hasAttestedThisEpoch: false,
-    unbondingStartTime: 0
+  const [myStake, setMyStake] = useState(() => {
+    const storedRole = localStorage.getItem('scenario_role') || '';
+    return {
+      amount: '0',
+      reward: '0',
+      slashCount: 0,
+      blocksProposed: 0,
+      missedAttestations: 0,
+      unbondingTime: 0,
+      minStakeDuration: 0,
+      hasAttestedThisEpoch: false,
+      unbondingStartTime: 0,
+      lastProposedBlockNumber: 0,
+      role: storedRole
+    };
   })
   
   // Enhanced PoS State
@@ -7421,11 +7387,188 @@ function App() {
   // Sync status indicator
   const [lastSyncTime, setLastSyncTime] = useState(Date.now())
   const lastSyncRef = useRef(Date.now())
+  const prevRoleRef = useRef('')
+  const [roleAssignedBanner, setRoleAssignedBanner] = useState(false)
+  const [roleContractInput, setRoleContractInput] = useState('')
+  const [roleContractRegistering, setRoleContractRegistering] = useState(false)
+  const [deployRoleInProgress, setDeployRoleInProgress] = useState(false)
+  const [roleTemplateExpanded, setRoleTemplateExpanded] = useState(false)
+
+  // Scenario contract addresses (from instructor; students save to localStorage)
+  const [carSaleAddr, setCarSaleAddr] = useState(localStorage.getItem('car_sale_addr') || '')
+  const [marketplaceAddr, setMarketplaceAddr] = useState(localStorage.getItem('marketplace_addr') || '')
+  const [carSaleCheckResult, setCarSaleCheckResult] = useState(null)
+  const [carSaleCheckLoading, setCarSaleCheckLoading] = useState(false)
+  // Ransomware scenario (Phase 7)
+  const [ransomContractAddress, setRansomContractAddress] = useState(localStorage.getItem('ransom_addr') || '')
+  const [ransomAmount, setRansomAmount] = useState('0.1')
+  const [ransomScenarioOpen, setRansomScenarioOpen] = useState(false)
+  const [artifactsOpen, setArtifactsOpen] = useState(true)
+
+  // Script Playground (Phase 6: Web Playground)
+  const [scriptPlaygroundOpen, setScriptPlaygroundOpen] = useState(false)
+  const [contractLabOpen, setContractLabOpen] = useState(false)
+  const [txHistoryOpen, setTxHistoryOpen] = useState(true)
+  const [loadCodeForConsole, setLoadCodeForConsole] = useState('')
+  const [scriptCode, setScriptCode] = useState(`// Run ethers.js against PoS and contracts
+// Available: provider, ethers, wallet, posAddress, PoSABI
+const c = new ethers.Contract(posAddress, PoSABI, wallet.signer);
+const total = await c.totalStaked();
+return ethers.formatEther(total) + ' ETH staked';`)
+  const [scriptOutput, setScriptOutput] = useState('')
+  const [scriptRunning, setScriptRunning] = useState(false)
 
   const saveTrail = (next) => {
     setTrail(next)
     localStorage.setItem('learning_trail', JSON.stringify(next))
   }
+
+  // Notify when role is newly assigned
+  useEffect(() => {
+    const role = myStake.role || ''
+    if (role && !prevRoleRef.current) {
+      setRoleAssignedBanner(true)
+    }
+    prevRoleRef.current = role
+  }, [myStake.role])
+
+  // Extract artifacts from chat (instructor posts [ARTIFACT:...] for scenario clues)
+  const artifacts = (messages || [])
+    .filter(m => m.text && typeof m.text === 'string' && m.text.startsWith('[ARTIFACT:'))
+    .map(m => ({ content: m.text.slice(10).replace(/\]$/, ''), timestamp: m.timestamp, sender: m.sender }))
+
+  // Shared helper: parse messages for role assignment
+  const parseRoleFromMessages = useCallback((msgList, address, validatorList) => {
+    if (!msgList?.length || !address) return null;
+    const myAddr = address.toLowerCase();
+    let assignedRole = null;
+    let latestTimestamp = 0;
+    console.log('[Role] Parsing', msgList.length, 'messages for', myAddr.slice(0, 10) + '...');
+    for (const m of msgList) {
+      const text = (m?.text ?? m?.message ?? '').trim();
+      if (!text || typeof text !== 'string') continue;
+      // [SCENARIO:Name:Role1,Role2,...] — assign by participant index (sorted by address)
+      const scenarioMatch = text.match(/\[SCENARIO:([^:]+):([^\]]+)\]/);
+      if (scenarioMatch) {
+        const roles = scenarioMatch[2].split(',').map(r => r.trim()).filter(Boolean);
+        if (roles.length === 0) continue;
+        const participants = [...(validatorList || [])].map(a => (typeof a === 'string' ? a : a?.address)?.toLowerCase?.()).filter(Boolean);
+        if (!participants.includes(myAddr)) participants.push(myAddr);
+        const sorted = [...new Set(participants)].sort();
+        const idx = sorted.indexOf(myAddr);
+        if (idx >= 0) {
+          const role = roles[idx % roles.length];
+          if (role && (m.timestamp || 0) >= latestTimestamp) {
+            assignedRole = role;
+            latestTimestamp = m.timestamp || 0;
+          }
+        }
+      }
+      // [ROLES:addr1:Role1;addr2:Role2;...] — direct assignment
+      const rolesMatch = text.match(/\[ROLES:([^\]]+)\]/);
+      if (rolesMatch) {
+        console.log('[Role] Found ROLES message:', text.slice(0, 80) + '...');
+        const pairs = rolesMatch[1].split(';');
+        for (const p of pairs) {
+          if (p.length < 44) { console.log('[Role] Skipping short pair:', p); continue; }
+          const addr = p.slice(0, 42).toLowerCase();
+          const sep = p[42];
+          if (sep !== ':') { console.log('[Role] Bad separator at pos 42:', sep, 'pair:', p.slice(0, 50)); continue; }
+          const role = p.slice(43).trim();
+          console.log('[Role] Checking', addr.slice(0, 10), '===', myAddr.slice(0, 10), '?', addr === myAddr, 'role:', role);
+          if (addr === myAddr && role && (m.timestamp || 0) >= latestTimestamp) {
+            assignedRole = role;
+            latestTimestamp = m.timestamp || 0;
+          }
+        }
+      }
+    }
+    return assignedRole;
+  }, []);
+
+  // Parse chat for [SCENARIO:...] and [ROLES:...] — frontend-only role assignment
+  useEffect(() => {
+    if (!messages?.length || !wallet.address) return;
+    const assignedRole = parseRoleFromMessages(messages, wallet.address, validators);
+    if (assignedRole) {
+      localStorage.setItem('scenario_role', assignedRole);
+      setMyStake(prev => ({ ...prev, role: assignedRole }));
+      console.log('[Role] useEffect assigned:', assignedRole);
+    } else {
+      console.log('[Role] useEffect: no role found. messages:', messages.length, 'wallet:', wallet.address?.slice(0, 10));
+    }
+  }, [messages, wallet.address, validators, parseRoleFromMessages])
+
+  // Run script in Playground (Phase 6)
+  const runScript = useCallback(async () => {
+    if (!provider || !wallet?.signer || !posAddress) {
+      setScriptOutput('❌ Need provider, wallet, and PoS address. Connect first.')
+      return
+    }
+    setScriptRunning(true)
+    setScriptOutput('⏳ Running...')
+    try {
+      const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor
+      const fn = new AsyncFunction('provider', 'ethers', 'wallet', 'posAddress', 'PoSABI', scriptCode)
+      const result = await fn(provider, ethers, wallet, posAddress, PoSABI)
+      setScriptOutput(result !== undefined ? String(result) : '✓ (no return value)')
+    } catch (e) {
+      setScriptOutput('❌ ' + (e.reason || e.message || String(e)))
+    } finally {
+      setScriptRunning(false)
+    }
+  }, [provider, wallet, posAddress, scriptCode])
+
+  // Check CarSale state (runs in browser, no terminal needed)
+  const checkCarSaleState = useCallback(async () => {
+    const addr = carSaleAddr?.trim();
+    if (!addr || !addr.startsWith('0x') || addr.length !== 42) {
+      setStatusMsg('Paste the CarSale address first (from instructor).');
+      setTimeout(() => setStatusMsg(''), 4000);
+      return;
+    }
+    if (!provider) {
+      setStatusMsg('Connect RPC first.');
+      return;
+    }
+    setCarSaleCheckLoading(true);
+    setCarSaleCheckResult(null);
+    setStatusMsg('⏳ Checking CarSale state...');
+    try {
+      const CarSaleABI = [
+        'function currentState() view returns (uint8)',
+        'function salePrice() view returns (uint256)',
+        'function depositAmount() view returns (uint256)',
+        'function getParticipants() view returns (address,address,address,address)',
+      ];
+      const c = new ethers.Contract(addr, CarSaleABI, provider);
+      const [state, price, deposit, participants] = await Promise.all([
+        c.currentState(),
+        c.salePrice(),
+        c.depositAmount(),
+        c.getParticipants(),
+      ]);
+      const states = ['Listed', 'DepositPaid', 'InspectionRequested', 'InspectionPassed', 'InspectionFailed', 'Completed', 'Refunded'];
+      const stateName = states[Number(state)] || state;
+      setCarSaleCheckResult({
+        state: stateName,
+        price: ethers.formatEther(price),
+        deposit: ethers.formatEther(deposit),
+        seller: participants[1]?.slice(0, 6) + '...' + participants[1]?.slice(-4),
+        buyer: participants[2]?.slice(0, 6) + '...' + participants[2]?.slice(-4),
+        mechanic: participants[3]?.slice(0, 6) + '...' + participants[3]?.slice(-4),
+      });
+      setStatusMsg('✅ State: ' + stateName);
+      setTimeout(() => setStatusMsg(''), 4000);
+    } catch (e) {
+      const errMsg = e.reason || e.message || String(e);
+      setCarSaleCheckResult({ error: errMsg });
+      setStatusMsg('❌ ' + errMsg);
+      setTimeout(() => setStatusMsg(''), 5000);
+    } finally {
+      setCarSaleCheckLoading(false);
+    }
+  }, [carSaleAddr, provider])
 
   // Reset entire session - clears all user data and creates fresh start
   const resetSession = () => {
@@ -7441,10 +7584,10 @@ function App() {
       'lab_feedback',           // Feedback data
       'quiz_scores',            // Quiz scores
       'session_start',          // Session start time
-      'lab_evaluation',         // Evaluation survey
       'classmate_nicknames',    // Classmate nicknames
       'pos_addr',               // Contract address (will reload default)
-      'my_nickname'             // User's own nickname
+      'my_nickname',            // User's own nickname
+      'scenario_role'           // Frontend-only role assignment
     ];
     
     keysToRemove.forEach(key => localStorage.removeItem(key));
@@ -7468,7 +7611,9 @@ function App() {
       unbondingTime: 0,
       minStakeDuration: 0,
       hasAttestedThisEpoch: false,
-      unbondingStartTime: 0
+      unbondingStartTime: 0,
+      lastProposedBlockNumber: 0,
+      role: ''
     });
     setNicknames({});
     setMyNickname('');
@@ -7516,7 +7661,7 @@ function App() {
     }
   }, [posAddress]);
 
-  // 1. Initialize Provider
+  // 1. Initialize Provider (use staticNetwork to avoid "network does not support ENS" on local/custom chains)
   useEffect(() => {
     const sanitizedUrl = (rpcUrl || "").trim()
     if (!sanitizedUrl) {
@@ -7524,19 +7669,43 @@ function App() {
         setNodeStatus({ connected: false, blockNumber: 0 })
         return
     }
-    try {
-        const newProvider = new ethers.JsonRpcProvider(sanitizedUrl)
+    let cancelled = false
+    const init = async () => {
+      try {
+        const temp = new ethers.JsonRpcProvider(sanitizedUrl)
+        let chainId = 31337
+        try {
+          const network = await temp.getNetwork()
+          if (cancelled) return
+          chainId = Number(network.chainId)
+        } catch (_) {
+          // RPC may not be ready; use 31337 for local Hardhat
+          if (/localhost|127\.0\.0\.1|8545/.test(sanitizedUrl)) chainId = 31337
+        }
+        if (cancelled) return
+        const staticNet = ethers.Network.from(chainId)
+        const newProvider = new ethers.JsonRpcProvider(sanitizedUrl, staticNet, { staticNetwork: staticNet })
         setProvider(newProvider)
-    } catch (e) {
-        console.error("Invalid RPC URL:", e)
-        setProvider(null)
-        setNodeStatus({ connected: false, blockNumber: 0 })
+      } catch (e) {
+        if (!cancelled) {
+          console.error("Invalid RPC URL:", e)
+          setProvider(null)
+          setNodeStatus({ connected: false, blockNumber: 0 })
+        }
+      }
     }
+    init()
+    return () => { cancelled = true }
   }, [rpcUrl])
 
   // 2. Auto-Connect Logic (Live Mode and Token Concepts need wallet for deploy/interact)
+  // Skip auto-wallet if new student (by IP) must create first — no auto-EOA
+  const hasLocalWallet = getWalletList().length > 0
+  const mustCreateWalletFirst = !session.hasCreatedWallet && !hasLocalWallet && !session.loading
+
   useEffect(() => {
     if ((view !== 'live' && view !== 'tokens') || !provider || wallet.mode === 'metamask') return;
+    if (mustCreateWalletFirst) return; // Show create flow, don't auto-create
 
     let cancelled = false
 
@@ -7573,6 +7742,11 @@ function App() {
                     mode: mode || 'guest',
                     nickname: nickname
                 }))
+                // Register wallet creation with Lab API (per-IP) so future visits don't require create-first
+                if (!session.hasCreatedWallet) {
+                  fetch('/lab-api/register-wallet', { method: 'POST' }).catch(() => {})
+                  setSession(prev => ({ ...prev, hasCreatedWallet: true }))
+                }
             }
         } catch (err) {
             console.error("Guest wallet init failed:", err)
@@ -7589,7 +7763,7 @@ function App() {
         clearInterval(interval)
         window.removeEventListener('walletSwitched', onWalletSwitched)
     }
-  }, [provider, view, wallet.mode]);
+  }, [provider, view, wallet.mode, mustCreateWalletFirst, session.hasCreatedWallet]);
 
   // 3. Auto-Join Class List when wallet is ready
   useEffect(() => {
@@ -7612,7 +7786,7 @@ function App() {
         // Check if wallet has funds - can't join without gas
         const balance = await provider.getBalance(wallet.address);
         if (balance === 0n) {
-          console.log("[AutoJoin] Wallet has no funds, skipping auto-join (user needs to use faucet first)");
+          console.log("[AutoJoin] Wallet has no funds, skipping auto-join (user needs funds from instructor first)");
           hasAutoJoined.current = false; // Allow retry after they get funds
           return;
         }
@@ -7705,64 +7879,25 @@ function App() {
       }
     }
     
-    const fetchStakeInfo = async () => {
+    // Live tab: only fetch role/roleContract (staking is in Beacon Lab)
+    const fetchRoleInfo = async () => {
       if (!posAddress || posAddress.length !== 42) return
       try {
-        // Verify contract exists before calling functions
         const code = await provider.getCode(posAddress)
-        if (code === '0x' || code === '0x0') {
-          // Contract not deployed at this address - silently skip
-          return
-        }
-        
+        if (code === '0x' || code === '0x0') return
         const contract = new ethers.Contract(posAddress, PoSABI, provider)
-        
-        // Get comprehensive validator stats
-        const [stats, epoch, epochTime, apy, hasAttested, minDuration, unbonding] = await Promise.all([
-          contract.getValidatorStats(wallet.address),
-          contract.currentEpoch(),
-          contract.getTimeUntilNextEpoch(),
-          contract.getCurrentAPY(),
-          contract.hasAttestedThisEpoch(wallet.address),
-          contract.getMinStakeDurationRemaining(wallet.address),
-          contract.withdrawalRequestTime(wallet.address)
-        ])
-        
-        // Calculate unbonding time remaining client-side for real-time countdown
-        // withdrawalRequestTime is when unbonding started, unbonding period is 60 seconds
-        const unbondingTimestamp = Number(unbonding);
-        let unbondingRemaining = 0;
-        if (unbondingTimestamp > 0) {
-          const currentBlockTime = Math.floor(Date.now() / 1000);
-          const unbondingEndTime = unbondingTimestamp + 60; // 60 second unbonding period
-          unbondingRemaining = Math.max(0, unbondingEndTime - currentBlockTime);
-        }
-        
-        setMyStake({
-          amount: ethers.formatEther(stats.stakeAmount),
-          reward: ethers.formatEther(stats.rewardAmount),
-          slashCount: Number(stats.slashes),
-          blocksProposed: Number(stats.blocks),
-          missedAttestations: Number(stats.attestations),
-          unbondingTime: unbondingRemaining,
-          minStakeDuration: Number(minDuration),
-          hasAttestedThisEpoch: hasAttested,
-          unbondingStartTime: unbondingTimestamp // Store the start time for reference
-        })
-        
-        setCurrentEpoch(Number(epoch))
-        setTimeUntilNextEpoch(Number(epochTime))
-        setCurrentAPY(Number(apy) / 100) // Convert from 500 to 5.00
-        setWithdrawalRequested(unbondingTimestamp > 0)
-        
-        // Update sync time indicator
+        const roleContract = await contract.roleContractAddress(wallet.address)
+        const role = localStorage.getItem('scenario_role') || ''
+        setMyStake(prev => ({
+          ...prev,
+          role: role || prev.role || '',
+          roleContract: roleContract && roleContract !== ethers.ZeroAddress ? roleContract : prev.roleContract || null
+        }))
         lastSyncRef.current = Date.now()
         setLastSyncTime(Date.now())
-        
       } catch (e) {
-        // Only log if it's not a contract-not-found error
         if (!e.message?.includes('BAD_DATA') && !e.message?.includes('could not decode')) {
-          console.error("Stake info error:", e)
+          console.error("Role info error:", e)
         }
       }
     }
@@ -7770,40 +7905,19 @@ function App() {
     // Initial updates
     updateBalance()
     fetchTxHistory()
-    fetchStakeInfo()
+    fetchRoleInfo()
     
-    // Fast polling for responsive updates (block listeners don't work over network)
-    // Use 2-second interval for blockchain data, 1-second for local countdown
+    // Fast polling for balance, role, tx history (no stake data on Live)
     let pollCount = 0;
     const interval = setInterval(() => {
       pollCount++;
-      
-      // Local countdown update every second (no blockchain call needed)
-      if (withdrawalRequested && myStake.unbondingStartTime > 0) {
-        const currentTime = Math.floor(Date.now() / 1000);
-        const unbondingEndTime = myStake.unbondingStartTime + 60;
-        const remaining = Math.max(0, unbondingEndTime - currentTime);
-        setMyStake(prev => ({ ...prev, unbondingTime: remaining }));
-      }
-      
-      // Balance update every second
       updateBalance();
-      
-      // Stake info from blockchain every 2 seconds (less frequent to reduce load)
-      if (pollCount % 2 === 0) {
-        fetchStakeInfo();
-      }
-      
-      // Transaction history every 5 seconds (less critical)
-      if (pollCount % 5 === 0) {
-        fetchTxHistory();
-      }
+      if (pollCount % 2 === 0) fetchRoleInfo();
+      if (pollCount % 5 === 0) fetchTxHistory();
     }, 1000);
     
-    return () => {
-      clearInterval(interval);
-    }
-  }, [provider, wallet.address, view, posAddress, withdrawalRequested, myStake.unbondingStartTime])
+    return () => clearInterval(interval);
+  }, [provider, wallet.address, view, posAddress])
 
   // Handle account change from AccountManager
   const handleAccountChange = async (newWalletInfo) => {
@@ -7851,46 +7965,7 @@ function App() {
     }
   };
 
-  // Helpers
-  const requestFunds = async () => {
-    if (!wallet.address) return;
-    
-    // Prevent double-requests
-    if (statusMsg.includes("Requesting") || statusMsg.includes("Processing")) {
-        return setStatusMsg("Request already in progress...")
-    }
-    
-    try {
-        setStatusMsg("Requesting ETH from faucet...")
-        const bankProvider = new ethers.JsonRpcProvider(rpcUrl)
-        const bankWallet = new ethers.Wallet(BANK_PRIVATE_KEY, bankProvider)
-        const tx = await bankWallet.sendTransaction({ to: wallet.address, value: ethers.parseEther("5.0") })
-        setStatusMsg("Processing faucet request...")
-        const receipt = await tx.wait()
-        setStatusMsg("Received 5 ETH from faucet!")
-        
-        // Immediately add to transaction history
-        setTxHistory(prev => [{
-          hash: tx.hash,
-          from: bankWallet.address,
-          to: wallet.address,
-          value: "5.0",
-          blockNumber: receipt.blockNumber,
-          timestamp: Math.floor(Date.now() / 1000),
-          type: 'received'
-        }, ...prev].slice(0, 20))
-        
-        // Update balance immediately
-        const bal = await provider.getBalance(wallet.address)
-        setWallet(prev => ({ ...prev, balance: ethers.formatEther(bal) }))
-        
-        // Clear message after 3 seconds
-        setTimeout(() => setStatusMsg(""), 3000)
-    } catch (e) { 
-        setStatusMsg("Faucet Failed: " + (e.message || "Unknown error"))
-        setTimeout(() => setStatusMsg(""), 5000)
-    }
-  }
+  // Helpers - No faucet; instructor funds students via Instructor dashboard
 
   const sendEthToPeer = async () => {
       if(!ethers.isAddress(recipient)) return setStatusMsg("Invalid Recipient Address")
@@ -7952,17 +8027,33 @@ function App() {
         
         // Chat
         const chatEvents = await contract.queryFilter("NewMessage", 0)
-        const formattedChat = chatEvents.map(e => ({
-            sender: e.args[0],
-            text: e.args[1],
-            timestamp: Number(e.args[2])
-        })).sort((a,b) => a.timestamp - b.timestamp)
+        const formattedChat = chatEvents.map(e => {
+          const a = e.args || []
+          return {
+            sender: a[0] ?? a.sender,
+            text: a[1] ?? a.message ?? '',
+            timestamp: Number(a[2] ?? a.timestamp ?? 0)
+          }
+        }).sort((a,b) => a.timestamp - b.timestamp)
         setMessages(formattedChat)
+
+        // Inline role parsing right after fetching messages
+        if (wallet.address && formattedChat.length > 0) {
+          const role = parseRoleFromMessages(formattedChat, wallet.address, validators);
+          if (role) {
+            console.log('[syncBlockchainData] Inline role found:', role);
+            localStorage.setItem('scenario_role', role);
+            setMyStake(prev => ({ ...prev, role }));
+          }
+        }
 
         // Roster Logic: Anyone who Staked OR Chatted is a "Participant"
         const stakeEvents = await contract.queryFilter("Staked", 0)
         const msgEvents = await contract.queryFilter("NewMessage", 0)
-        const allAddrs = [...stakeEvents.map(e=>e.args[0]), ...msgEvents.map(e=>e.args[0])]
+        const allAddrs = [
+          ...stakeEvents.map(e => (e.args && (e.args[0] ?? e.args.validator))),
+          ...msgEvents.map(e => (e.args && (e.args[0] ?? e.args.sender)))
+        ].filter(Boolean)
         const uniqueAddrs = [...new Set(allAddrs)]
         
         // Only update if we have addresses (don't replace with empty)
@@ -8104,9 +8195,9 @@ function App() {
     return nickname ? `${nickname} (${shortAddr})` : shortAddr;
   };
 
-  const copyAddress = (addr) => {
-      navigator.clipboard.writeText(addr)
-      setStatusMsg(`Copied ${addr.slice(0,6)}...`)
+  const copyAddress = async (addr) => {
+      const ok = await copyToClipboard(addr);
+      setStatusMsg(ok ? `Copied ${addr.slice(0,6)}...` : 'Copy failed — try selecting the address manually');
   }
 
   const getSessionAge = () => {
@@ -8140,12 +8231,23 @@ function App() {
         if (data.messages && data.messages.length > 0) {
           setMessages(data.messages);
           
+          // Inline role parsing — don't wait for useEffect
+          if (wallet.address) {
+            const role = parseRoleFromMessages(data.messages, wallet.address, data.validators || []);
+            if (role) {
+              console.log('[App] Subscriber: inline role =', role);
+              localStorage.setItem('scenario_role', role);
+              setMyStake(prev => ({ ...prev, role }));
+            }
+          }
+          
           // Parse messages for nickname announcements (format: [NICK:NickName])
           const newNicknames = {};
           data.messages.forEach(msg => {
-            const nickMatch = msg.text.match(/\[NICK:([^\]]+)\]/);
+            const text = msg?.text ?? msg?.message ?? '';
+            const nickMatch = text.match?.(/\[NICK:([^\]]+)\]/);
             if (nickMatch) {
-              newNicknames[msg.sender.toLowerCase()] = nickMatch[1].trim();
+              newNicknames[(msg.sender || '').toLowerCase()] = nickMatch[1].trim();
             }
           });
           if (Object.keys(newNicknames).length > 0) {
@@ -8160,14 +8262,13 @@ function App() {
         // Update validators list (merge with existing, don't replace with empty)
         if (data.validators && data.validators.length > 0) {
           setValidators(prev => {
-            // Merge: keep existing + add new ones
             const combined = [...new Set([...prev, ...data.validators])];
             return combined;
           });
         }
         
-        // Update network stats
-        if (data.network) {
+        // Update network stats (skip on Live - staking is in Beacon Lab)
+        if (data.network && view !== 'live') {
           setCurrentEpoch(data.network.currentEpoch);
           setTimeUntilNextEpoch(data.network.timeUntilNextEpoch);
           setCurrentAPY(data.network.currentAPY);
@@ -8185,9 +8286,9 @@ function App() {
 
 
   // Compute current mode from view
-  const currentMode = ['intro', 'concepts', 'explore', 'sim'].includes(view) 
+  const currentMode = ['intro', 'concepts', 'explore', 'sim', 'tokens'].includes(view) 
     ? 'learning' 
-    : (view === 'live' || view === 'diagnostics')
+    : ['live', 'diagnostics', 'beacon-lab', 'contract-builder-lab', 'tokenization-lab'].includes(view)
       ? 'live' 
       : view === 'cli' 
         ? 'cli' 
@@ -8321,7 +8422,7 @@ function App() {
                             <span>3</span> Explore
                         </button>
                         <button className={`roadmap-step ${view === 'sim' ? 'active' : ''} ${!unlocks.sim ? 'locked' : ''}`} onClick={() => requestView('sim')}>
-                            <span>4</span> Practice
+                            <span>4</span> Test Your Knowledge
                         </button>
                         <button className={`roadmap-step ${view === 'tokens' ? 'active' : ''}`} onClick={() => setView('tokens')}>
                             <span>5</span> Token Concepts (FT vs NFT)
@@ -8332,12 +8433,12 @@ function App() {
                     <div style={{
                         marginTop: '1.5rem',
                         padding: '1rem',
-                        background: 'rgba(59,130,246,0.1)',
+                        background: 'rgba(16,185,129,0.1)',
                         borderRadius: '0.75rem',
-                        border: '1px solid rgba(59,130,246,0.3)'
+                        border: '1px solid rgba(16,185,129,0.3)'
                     }}>
-                        <div style={{fontSize: '0.8rem', color: '#93c5fd', marginBottom: '0.5rem'}}>
-                            💡 Ready for hands-on?
+                        <div style={{fontSize: '0.8rem', color: '#6ee7b7', marginBottom: '0.5rem'}}>
+                            Ready for hands-on?
                         </div>
                         <button 
                             onClick={() => setView('live')}
@@ -8353,25 +8454,7 @@ function App() {
                                 fontSize: '0.9rem'
                             }}
                         >
-                            🌐 Go to Live Network →
-                        </button>
-                        <button
-                            onClick={() => setView('diagnostics')}
-                            style={{
-                                width: '100%',
-                                marginTop: '0.6rem',
-                                padding: '0.7rem',
-                                background: 'rgba(59,130,246,0.15)',
-                                border: '1px solid rgba(59,130,246,0.35)',
-                                borderRadius: '0.5rem',
-                                color: '#bfdbfe',
-                                fontWeight: 'bold',
-                                cursor: 'pointer',
-                                fontSize: '0.85rem'
-                            }}
-                            title="Run safe connectivity checks to confirm your setup"
-                        >
-                            🧪 Run Diagnostics
+                            Go to Live Network →
                         </button>
                     </div>
                 </nav>
@@ -8563,7 +8646,7 @@ function App() {
                         >
                             🧪 Diagnostics
                         </button>
-                        {view === 'diagnostics' && (
+                        {view !== 'live' && (
                             <button
                                 onClick={() => setView('live')}
                                 style={{
@@ -8582,7 +8665,92 @@ function App() {
                             </button>
                         )}
                     </div>
-                    
+
+                    {/* Labs Section */}
+                    <div style={{
+                        fontSize: '0.75rem',
+                        color: '#94a3b8',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.1em',
+                        marginBottom: '0.5rem',
+                        paddingLeft: '0.5rem'
+                    }}>
+                        Hands-On Labs
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1rem' }}>
+                        <button
+                            onClick={() => setView('beacon-lab')}
+                            style={{
+                                width: '100%',
+                                padding: '0.7rem',
+                                background: view === 'beacon-lab' ? 'rgba(139,92,246,0.3)' : 'rgba(139,92,246,0.12)',
+                                border: view === 'beacon-lab' ? '1px solid rgba(139,92,246,0.6)' : '1px solid rgba(139,92,246,0.3)',
+                                borderRadius: '0.5rem',
+                                color: '#c4b5fd',
+                                cursor: 'pointer',
+                                fontSize: '0.85rem',
+                                fontWeight: view === 'beacon-lab' ? 'bold' : 'normal',
+                                textAlign: 'left'
+                            }}
+                        >
+                            ⛓ Beacon Chain Lab
+                        </button>
+                        <button
+                            onClick={() => setView('contract-builder-lab')}
+                            style={{
+                                width: '100%',
+                                padding: '0.7rem',
+                                background: view === 'contract-builder-lab' ? 'rgba(14,165,233,0.3)' : 'rgba(14,165,233,0.12)',
+                                border: view === 'contract-builder-lab' ? '1px solid rgba(14,165,233,0.6)' : '1px solid rgba(14,165,233,0.3)',
+                                borderRadius: '0.5rem',
+                                color: '#7dd3fc',
+                                cursor: 'pointer',
+                                fontSize: '0.85rem',
+                                fontWeight: view === 'contract-builder-lab' ? 'bold' : 'normal',
+                                textAlign: 'left'
+                            }}
+                        >
+                            🏗 Contract Builder Lab
+                        </button>
+                        <button
+                            onClick={() => setView('tokenization-lab')}
+                            style={{
+                                width: '100%',
+                                padding: '0.7rem',
+                                background: view === 'tokenization-lab' ? 'rgba(245,158,11,0.3)' : 'rgba(245,158,11,0.12)',
+                                border: view === 'tokenization-lab' ? '1px solid rgba(245,158,11,0.6)' : '1px solid rgba(245,158,11,0.3)',
+                                borderRadius: '0.5rem',
+                                color: '#fcd34d',
+                                cursor: 'pointer',
+                                fontSize: '0.85rem',
+                                fontWeight: view === 'tokenization-lab' ? 'bold' : 'normal',
+                                textAlign: 'left'
+                            }}
+                        >
+                            🪙 Tokenization Lab
+                        </button>
+                    </div>
+
+                    {/* 3D Chain Explorer */}
+                    <button
+                        onClick={() => navigate('/chain-3d')}
+                        style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            marginBottom: '1rem',
+                            background: 'rgba(34,255,136,0.15)',
+                            border: '1px solid rgba(34,255,136,0.35)',
+                            borderRadius: '0.5rem',
+                            color: '#22ff88',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            fontWeight: 'bold'
+                        }}
+                        title="3D Gibson-style blockchain visualization"
+                    >
+                        🎮 3D Chain Explorer
+                    </button>
+
                     {/* Classmates Roster */}
                     <div className="roster-panel" style={{flex: 1}}>
                         <h3>👥 Classmates ({validators.filter(v => v && typeof v === 'string').length})</h3>
@@ -8892,6 +9060,58 @@ function App() {
 
         {/* MAIN CONTENT AREA */}
         <main className="main-content">
+            {/* ========== LAB TERMINAL - TOP BAR (always visible) ========== */}
+            <div style={{
+                position: 'sticky',
+                top: 0,
+                zIndex: 100,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.5rem 0',
+                marginBottom: '1rem',
+                background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(15, 23, 42, 0.95) 100%)',
+                borderBottom: '1px solid rgba(71, 85, 105, 0.5)',
+                flexWrap: 'wrap'
+            }}>
+                <button
+                    onClick={() => openLabTerminal(rpcUrl)}
+                    style={{
+                        padding: '0.5rem 1rem',
+                        background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                        border: 'none',
+                        borderRadius: '0.5rem',
+                        color: 'white',
+                        fontSize: '0.9rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)'
+                    }}
+                >
+                    <span>🖥️</span>
+                    <span>Lab Terminal</span>
+                </button>
+                <button
+                    onClick={() => openLabTerminal(rpcUrl)}
+                    style={{
+                        padding: '0.35rem 0.65rem',
+                        background: 'rgba(139, 92, 246, 0.25)',
+                        border: '1px solid rgba(139, 92, 246, 0.5)',
+                        borderRadius: '0.35rem',
+                        color: '#c4b5fd',
+                        fontSize: '0.8rem',
+                        cursor: 'pointer'
+                    }}
+                >
+                    + New
+                </button>
+                <span style={{ fontSize: '0.85rem', color: '#64748b', marginLeft: '0.25rem' }}>
+                    Deploy contracts, run CLI — opens in new window
+                </span>
+            </div>
             
             {/* 0. ORIENTATION VIEW */}
             {view === 'intro' && (
@@ -8950,6 +9170,27 @@ function App() {
                                     with a live blockchain environment. This lab provides practical experience with staking, 
                                     validation, and network security concepts.
                                 </p>
+                                
+                                {/* Skip to Live - Classroom mode */}
+                                <button
+                                    onClick={() => setView('live')}
+                                    style={{
+                                        padding: '0.75rem 1.5rem',
+                                        background: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+                                        border: 'none',
+                                        borderRadius: '0.5rem',
+                                        color: 'white',
+                                        fontWeight: 'bold',
+                                        fontSize: '0.95rem',
+                                        cursor: 'pointer',
+                                        marginBottom: '1rem',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                    }}
+                                >
+                                    I&apos;m in a class — take me to the lab →
+                                </button>
                                 
                                 {/* PROVENANCE BADGE - Trust indicator */}
                                 <div style={{marginBottom: '1.5rem'}}>
@@ -9484,61 +9725,128 @@ function App() {
             {/* 3. LIVE NETWORK VIEW */}
             {view === 'live' && (
                 <div className="live-dashboard">
-                    {/* Active Identity Banner - Always visible */}
+                    {/* Goal banner + Do This First */}
+                    <div style={{
+                        marginBottom: '1rem',
+                        padding: '1rem 1.25rem',
+                        background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(59, 130, 246, 0.15) 100%)',
+                        borderRadius: '0.75rem',
+                        border: '1px solid rgba(34, 197, 94, 0.4)',
+                    }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '1.05rem', color: '#86efac', marginBottom: '0.5rem' }}>
+                            Your Wallet
+                        </div>
+                        <p style={{ fontSize: '0.9rem', color: '#cbd5e1', margin: '0 0 0.75rem 0' }}>
+                            Connect, get test ETH, send transactions. Use Beacon Chain Lab for staking and Smart Contract Lab for building and deploying.
+                        </p>
+                        <details style={{ fontSize: '0.85rem', color: '#94a3b8' }} open>
+                            <summary style={{ cursor: 'pointer', color: '#93c5fd' }}>Do This First</summary>
+                            <ul style={{ margin: '0.5rem 0 0 1rem', paddingLeft: 0, listStyle: 'none' }}>
+                                <li>{wallet?.address ? '✅' : '☐'} Connect wallet</li>
+                                <li>{parseFloat(wallet?.balance || 0) > 0 ? '✅' : '☐'} Get test ETH (from instructor)</li>
+                                <li>
+                                    <button
+                                        type="button"
+                                        onClick={() => setView('beacon-lab')}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            padding: 0,
+                                            color: '#93c5fd',
+                                            cursor: 'pointer',
+                                            fontSize: 'inherit',
+                                            textDecoration: 'underline',
+                                            textAlign: 'left'
+                                        }}
+                                    >
+                                        ☐ Stake & attest → Beacon Chain Lab
+                                    </button>
+                                </li>
+                                <li>
+                                    <button
+                                        type="button"
+                                        onClick={() => setView('contract-builder-lab')}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            padding: 0,
+                                            color: '#93c5fd',
+                                            cursor: 'pointer',
+                                            fontSize: 'inherit',
+                                            textDecoration: 'underline',
+                                            textAlign: 'left'
+                                        }}
+                                    >
+                                        ☐ Build & deploy → Smart Contract Lab
+                                    </button>
+                                </li>
+                            </ul>
+                        </details>
+                    </div>
+                    {/* Role assignment notification - shown when newly assigned */}
+                    {roleAssignedBanner && myStake.role && (
+                        <div style={{
+                            marginBottom: '1rem',
+                            padding: '1rem 1.25rem',
+                            background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.3) 0%, rgba(167, 139, 250, 0.2) 100%)',
+                            border: '2px solid #8b5cf6',
+                            borderRadius: '0.75rem',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'flex-start',
+                            gap: '1rem'
+                        }}>
+                            <div>
+                                <div style={{fontSize: '1.1rem', fontWeight: 'bold', color: '#c4b5fd', marginBottom: '0.25rem'}}>
+                                    🎭 You've been assigned: {myStake.role}
+                                </div>
+                                <div style={{fontSize: '0.9rem', color: '#a78bfa'}}>
+                                    Check your Role Hub below for goals, tasks, and quick actions.
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setRoleAssignedBanner(false)}
+                                style={{
+                                    padding: '0.25rem 0.5rem',
+                                    background: 'rgba(255,255,255,0.2)',
+                                    border: '1px solid rgba(255,255,255,0.3)',
+                                    borderRadius: '0.25rem',
+                                    color: '#e2e8f0',
+                                    cursor: 'pointer',
+                                    fontSize: '0.8rem'
+                                }}
+                            >
+                                Dismiss
+                            </button>
+                        </div>
+                    )}
+                    {/* Active Identity - Compact */}
                     <div style={{
                         display: 'flex',
                         flexWrap: 'wrap',
-                        gap: '1rem',
+                        gap: '0.5rem',
                         alignItems: 'center',
-                        padding: '0.75rem 1rem',
-                        marginBottom: '1rem',
+                        padding: '0.4rem 0.65rem',
+                        marginBottom: '0.75rem',
                         background: 'rgba(30, 41, 59, 0.95)',
-                        border: '1px solid rgba(59, 130, 246, 0.4)',
-                        borderRadius: '0.5rem',
-                        fontSize: '0.85rem'
+                        border: '1px solid rgba(59, 130, 246, 0.3)',
+                        borderRadius: '0.35rem',
+                        fontSize: '0.8rem'
                     }}>
-                        <span style={{color: '#94a3b8', fontWeight: '600'}}>Active Identity:</span>
-                        <span style={{
-                            padding: '0.2rem 0.5rem',
-                            background: isInstructor ? 'rgba(236, 72, 153, 0.2)' : 'rgba(59, 130, 246, 0.2)',
-                            borderRadius: '0.25rem',
-                            color: isInstructor ? '#f472b6' : '#93c5fd',
-                            fontWeight: '600'
-                        }}>
-                            {isInstructor ? 'Instructor' : 'Student'}
+                        <span style={{color: '#94a3b8'}}>You:</span>
+                        <span style={{fontFamily: 'monospace', color: '#e2e8f0'}}>
+                            {wallet?.address ? `${wallet.address.slice(0,6)}...${wallet.address.slice(-4)}` : 'No wallet'}
                         </span>
-                        <span style={{color: '#cbd5e1'}}>
-                            {wallet.address ? (
-                                <>
-                                    <span style={{fontFamily: 'monospace'}}>{wallet.address}</span>
-                                    <button onClick={() => copyAddress(wallet.address)} style={{
-                                        marginLeft: '0.5rem',
-                                        padding: '0.15rem 0.4rem',
-                                        background: 'rgba(255,255,255,0.1)',
-                                        border: '1px solid rgba(255,255,255,0.2)',
-                                        borderRadius: '0.25rem',
-                                        color: '#94a3b8',
-                                        cursor: 'pointer',
-                                        fontSize: '0.75rem'
-                                    }}>Copy</button>
-                                </>
-                            ) : 'No wallet'}
-                        </span>
+                        {wallet?.address && (
+                        <button onClick={() => copyAddress(wallet.address)} style={{padding: '0.2rem 0.4rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.1)', border: '1px solid #334155', borderRadius: '0.25rem', color: '#94a3b8', cursor: 'pointer'}}>Copy</button>
+                        )}
                         <span style={{color: '#64748b'}}>|</span>
-                        <span style={{color: '#94a3b8', fontWeight: '600'}}>Contract:</span>
-                        <span style={{color: '#cbd5e1', fontFamily: 'monospace'}}>
-                            {posAddress && posAddress.length === 42 ? `${posAddress.slice(0,10)}...${posAddress.slice(-8)}` : 'Not set'}
+                        <span style={{color: '#94a3b8'}}>Contract:</span>
+                        <span style={{fontFamily: 'monospace', color: '#e2e8f0'}}>
+                            {posAddress && posAddress.length === 42 ? `${posAddress.slice(0,8)}...` : 'Not set'}
                         </span>
                         {posAddress && posAddress.length === 42 && (
-                            <button onClick={() => copyAddress(posAddress)} style={{
-                                padding: '0.15rem 0.4rem',
-                                background: 'rgba(255,255,255,0.1)',
-                                border: '1px solid rgba(255,255,255,0.2)',
-                                borderRadius: '0.25rem',
-                                color: '#94a3b8',
-                                cursor: 'pointer',
-                                fontSize: '0.75rem'
-                            }}>Copy</button>
+                            <button onClick={() => copyAddress(posAddress)} style={{padding: '0.2rem 0.4rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.1)', border: '1px solid #334155', borderRadius: '0.25rem', color: '#94a3b8', cursor: 'pointer'}}>Copy</button>
                         )}
                     </div>
                     
@@ -9547,19 +9855,55 @@ function App() {
                         <SocialProof 
                             validators={validators} 
                             messages={messages}
-                            stakersCount={actualValidatorCount}
+                            stakersCount={0}
                         />
                     </div>
-                    
-                    {/* Wallet Header - Like MetaMask */}
+
+                    {/* Create your first wallet (new students by IP) */}
+                    {mustCreateWalletFirst && (
+                        <div style={{
+                            marginBottom: '1rem',
+                            padding: '1.5rem',
+                            background: 'linear-gradient(135deg, #1e3a5f 0%, #312e81 100%)',
+                            border: '2px solid #3b82f6',
+                            borderRadius: '0.75rem',
+                            color: 'white',
+                            textAlign: 'center'
+                        }}>
+                            <div style={{fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem'}}>👛 Create your first wallet</div>
+                            <p style={{margin: '0 0 1rem 0', opacity: 0.9, fontSize: '0.9rem'}}>
+                                New students must create a wallet before receiving test ETH. You can create additional wallets later.
+                            </p>
+                            <div style={{display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap'}}>
+                                <button
+                                    onClick={() => setShowAccountManager(true)}
+                                    style={{
+                                        padding: '0.6rem 1.25rem',
+                                        background: '#3b82f6',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '0.5rem',
+                                        cursor: 'pointer',
+                                        fontWeight: 'bold',
+                                        fontSize: '0.95rem'
+                                    }}
+                                >
+                                    Create or import wallet
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Wallet Header - Compact (hidden when must create first) */}
+                    {!mustCreateWalletFirst && (
                     <div style={{
                         background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-                        padding: '2rem',
-                        borderRadius: '1rem',
-                        marginBottom: '1.5rem',
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
+                        marginBottom: '1rem',
                         color: 'white'
                     }}>
-                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1.5rem'}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem'}}>
                             <div>
                                 <div style={{fontSize: '0.85rem', opacity: 0.9, marginBottom: '0.5rem'}}>
                                     <span 
@@ -9591,15 +9935,7 @@ function App() {
                             <div style={{display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
                                 <button 
                                     onClick={() => copyAddress(wallet.address)}
-                                    style={{
-                                        background: 'rgba(255,255,255,0.2)',
-                                        border: 'none',
-                                        padding: '0.5rem 1rem',
-                                        borderRadius: '0.5rem',
-                                        color: 'white',
-                                        cursor: 'pointer',
-                                        fontSize: '0.9rem'
-                                    }}
+                                    style={{padding: '0.4rem 0.65rem', fontSize: '0.8rem', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '0.35rem', color: 'white', cursor: 'pointer'}}
                                 >
                                     📋 Copy
                                 </button>
@@ -9610,94 +9946,372 @@ function App() {
                                             alert(`Your Account:\n\nNickname: ${walletInfo.nickname}\nAddress: ${walletInfo.address}\n\nUse the sidebar buttons to Import/Export/Create accounts.`);
                                         }
                                     }}
-                                    style={{
-                                        background: 'rgba(255,255,255,0.2)',
-                                        border: 'none',
-                                        padding: '0.5rem 1rem',
-                                        borderRadius: '0.5rem',
-                                        color: 'white',
-                                        cursor: 'pointer',
-                                        fontSize: '0.9rem'
-                                    }}
+                                    style={{padding: '0.4rem 0.65rem', fontSize: '0.8rem', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '0.35rem', color: 'white', cursor: 'pointer'}}
                                 >
                                     ⚙️ Account
                                 </button>
                                 <button 
                                     onClick={() => setShowLiveHelp(true)}
-                                    style={{
-                                        background: 'rgba(255,255,255,0.2)',
-                                        border: 'none',
-                                        padding: '0.5rem 1rem',
-                                        borderRadius: '0.5rem',
-                                        color: 'white',
-                                        cursor: 'pointer',
-                                        fontSize: '0.9rem'
-                                    }}
+                                    style={{padding: '0.4rem 0.65rem', fontSize: '0.8rem', background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '0.35rem', color: 'white', cursor: 'pointer'}}
                                 >
                                     ❓ Help
                                 </button>
                             </div>
                         </div>
                         
-                        <div style={{textAlign: 'center', padding: '2rem 0'}}>
-                            <div style={{fontSize: '3rem', fontWeight: 'bold', marginBottom: '0.5rem'}}>
+                        <div style={{textAlign: 'center', padding: '1rem 0'}}>
+                            <div style={{fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.25rem'}}>
                                 {parseFloat(wallet.balance || 0).toFixed(4)} ETH
                             </div>
-                            <div style={{fontSize: '1.2rem', opacity: 0.9}}>
+                            <div style={{fontSize: '0.9rem', opacity: 0.9}}>
                                 ≈ ${(parseFloat(wallet.balance || 0) * 3000).toFixed(2)} USD
                             </div>
                         </div>
                         
-                        {parseFloat(myStake.amount) > 0 && (
+                        {!myStake.role && (
                             <div style={{
-                                background: 'rgba(255,255,255,0.15)',
-                                padding: '1rem',
-                                borderRadius: '0.75rem',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center'
+                                marginTop: '0.75rem',
+                                padding: '0.75rem 1rem',
+                                background: 'rgba(148, 163, 184, 0.12)',
+                                borderRadius: '0.35rem',
+                                border: '1px solid rgba(148, 163, 184, 0.25)',
+                                fontSize: '0.85rem',
+                                color: '#94a3b8'
                             }}>
-                                <div>
-                                    <div style={{fontSize: '0.85rem', opacity: 0.9}}>Staked</div>
-                                    <div style={{fontSize: '1.3rem', fontWeight: 'bold'}}>{parseFloat(myStake.amount).toFixed(4)} ETH</div>
-                                </div>
-                                <div style={{textAlign: 'right'}}>
-                                    <div style={{fontSize: '0.85rem', opacity: 0.9}}>Pending Rewards</div>
-                                    <div style={{fontSize: '1.3rem', fontWeight: 'bold', color: '#86efac'}}>+{parseFloat(myStake.reward).toFixed(6)} ETH</div>
-                                </div>
+                                <div style={{fontWeight: '600', color: '#cbd5e1', marginBottom: '0.35rem'}}>🎭 No role yet</div>
+                                <p style={{margin: 0, lineHeight: 1.5}}>
+                                    Your instructor assigns roles via chat. Stake or send a message so you appear in the list, then wait for them to send a message like <code style={{background: 'rgba(0,0,0,0.3)', padding: '0.1rem 0.3rem', borderRadius: 3}}>[ROLES:your-address:Car Buyer]</code>.
+                                </p>
                             </div>
                         )}
+                        {myStake.role && (
+                            <>
+                                <RoleHub
+                                    role={myStake.role}
+                                    myStake={myStake}
+                                    wallet={wallet}
+                                    provider={provider}
+                                    carSaleAddr={carSaleAddr}
+                                    marketplaceAddr={marketplaceAddr}
+                                    ransomAddr={ransomContractAddress}
+                                    onCarSaleAddrChange={(v) => { localStorage.setItem('car_sale_addr', v); setCarSaleAddr(v); }}
+                                    onMarketplaceAddrChange={(v) => { localStorage.setItem('marketplace_addr', v); setMarketplaceAddr(v); }}
+                                    onSelectCarSale={(addr) => { localStorage.setItem('car_sale_addr', addr); setCarSaleAddr(addr); }}
+                                    onRansomAddrChange={(v) => { localStorage.setItem('ransom_addr', v); setRansomContractAddress(v); }}
+                                    onLoadScript={(code) => {
+                                      setScriptCode(code);
+                                      setLoadCodeForConsole(code);
+                                      setScriptPlaygroundOpen(true);
+                                      setStatusMsg('✓ Script loaded! Lab Terminal expanded below — code will appear when the Hardhat prompt is ready.');
+                                      setTimeout(() => setStatusMsg(''), 4000);
+                                      setTimeout(() => document.getElementById('lab-terminal-section')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+                                    }}
+                                    onExpandConsole={setScriptPlaygroundOpen}
+                                    setStatusMsg={setStatusMsg}
+                                />
+                                {/* Deploy & Register section */}
+                                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(139, 92, 246, 0.3)' }}>
+                                    <div style={{ fontWeight: 'bold', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#a78bfa' }}>
+                                        📋 Deploy & Register
+                                    </div>
+                                    <div style={{
+                                        padding: '0.75rem',
+                                        background: myStake.roleContract ? 'rgba(34, 197, 94, 0.1)' : 'rgba(0,0,0,0.2)',
+                                        borderRadius: '0.5rem',
+                                        border: myStake.roleContract ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(139, 92, 246, 0.2)',
+                                    }}>
+                                        <div style={{ fontWeight: 'bold', fontSize: '0.85rem', marginBottom: '0.4rem', color: myStake.roleContract ? '#34d399' : '#e2e8f0' }}>
+                                            {myStake.role === 'Car Seller' ? '1️⃣ Share your wallet address' : (myStake.roleContract ? '✅' : '1️⃣') + ' Deploy your contract'}
+                                        </div>
+                                        {myStake.roleContract ? (
+                                            <div style={{ fontSize: '0.8rem', color: '#34d399', fontFamily: 'monospace' }}>
+                                                {String(myStake.roleContract).slice(0, 14)}...{String(myStake.roleContract).slice(-10)}
+                                            </div>
+                                        ) : myStake.role === 'Car Seller' ? (
+                                            <div>
+                                                <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '0 0 0.5rem 0' }}>
+                                                    No contract to deploy. Share your wallet address with the instructor—they set it as seller in CarSale. You receive ETH directly when the sale completes.
+                                                </p>
+                                                <div style={{ fontSize: '0.8rem', color: '#86efac', fontFamily: 'monospace', marginTop: '0.5rem', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.35rem' }}>
+                                                    {wallet?.address ? wallet.address : 'Connect wallet first'}
+                                                </div>
+                                                {wallet?.address && (
+                                                    <button
+                                                        onClick={async () => { const ok = await copyToClipboard(wallet.address); setStatusMsg(ok ? '✅ Address copied! Share with instructor.' : 'Copy failed — select address manually'); setTimeout(() => setStatusMsg(''), 2000); }}
+                                                        style={{ marginTop: '0.5rem', padding: '0.35rem 0.75rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '0.35rem', cursor: 'pointer', fontSize: '0.8rem' }}
+                                                    >
+                                                        📋 Copy address
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                {ROLE_CONTRACT_TEMPLATES[myStake.role] && (
+                                                    <>
+                                                        <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '0 0 0.5rem 0' }}>
+                                                            {ROLE_CONTRACT_TEMPLATES[myStake.role].description}
+                                                        </p>
+                                                        {ROLE_CONTRACT_TEMPLATES[myStake.role].name && (
+                                                        <button
+                                                            onClick={async () => {
+                                                                const tmpl = ROLE_CONTRACT_TEMPLATES[myStake.role];
+                                                                if (!tmpl?.name) return;
+                                                                setDeployRoleInProgress(true);
+                                                                setStatusMsg('🚀 Deploying ' + tmpl.name + '...');
+                                                                try {
+                                                                    const res = await fetch(`/artifacts/${tmpl.name}.json`);
+                                                                    if (!res.ok) throw new Error('Artifact not found: ' + tmpl.name);
+                                                                    const artifact = await res.json();
+                                                                    const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode, wallet.signer);
+                                                                    const needsArgs = artifact.abi.some(x => x.type === 'constructor' && x.inputs?.length > 0);
+                                                                    let contract;
+                                                                    if (needsArgs) {
+                                                                        const argStr = window.prompt('Constructor argument needed (e.g. CarSale contract address):');
+                                                                        if (!argStr) { setStatusMsg('Cancelled.'); setDeployRoleInProgress(false); return; }
+                                                                        contract = await factory.deploy(argStr.trim());
+                                                                    } else {
+                                                                        contract = await factory.deploy();
+                                                                    }
+                                                                    await contract.waitForDeployment();
+                                                                    const addr = await contract.getAddress();
+                                                                    setStatusMsg('✅ Deployed! Registering with class...');
+                                                                    const pos = new ethers.Contract(posAddress, PoSABI, wallet.signer);
+                                                                    const tx = await pos.registerRoleContract(addr);
+                                                                    await tx.wait();
+                                                                    setMyStake(prev => ({ ...prev, roleContract: addr }));
+                                                                    setStatusMsg('✅ Contract deployed & registered! Share address with instructor: ' + addr.slice(0, 10) + '...');
+                                                                    setTimeout(() => setStatusMsg(''), 6000);
+                                                                } catch (e) {
+                                                                    setStatusMsg('❌ ' + (e.reason || e.message));
+                                                                    setTimeout(() => setStatusMsg(''), 5000);
+                                                                } finally {
+                                                                    setDeployRoleInProgress(false);
+                                                                }
+                                                            }}
+                                                            disabled={!wallet.signer || deployRoleInProgress}
+                                                            style={{
+                                                                padding: '0.5rem 1rem',
+                                                                background: deployRoleInProgress ? '#475569' : 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                borderRadius: '0.5rem',
+                                                                cursor: (!wallet.signer || deployRoleInProgress) ? 'wait' : 'pointer',
+                                                                fontWeight: 'bold',
+                                                                fontSize: '0.85rem',
+                                                                width: '100%',
+                                                                marginBottom: '0.5rem',
+                                                                opacity: deployRoleInProgress ? 0.9 : 1
+                                                            }}
+                                                        >
+                                                            {deployRoleInProgress ? '⏳ Deploying...' : '🚀 Deploy ' + ROLE_CONTRACT_TEMPLATES[myStake.role].name + ' (one click)'}
+                                                        </button>
+                                                        )}
+                                                        {deployRoleInProgress && (
+                                                            <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.5rem' }}>
+                                                                ⏳ Deploying to blockchain, then registering with class...
+                                                            </div>
+                                                        )}
+                                                        {statusMsg && (statusMsg.includes('Deploy') || statusMsg.includes('deployed') || statusMsg.includes('Register') || statusMsg.includes('❌')) && !deployRoleInProgress && (
+                                                            <div style={{
+                                                                marginTop: '0.5rem',
+                                                                padding: '0.5rem 0.75rem',
+                                                                borderRadius: '0.35rem',
+                                                                fontSize: '0.85rem',
+                                                                background: statusMsg.includes('❌') ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)',
+                                                                border: `1px solid ${statusMsg.includes('❌') ? 'rgba(239, 68, 68, 0.4)' : 'rgba(34, 197, 94, 0.4)'}`,
+                                                                color: statusMsg.includes('❌') ? '#fca5a5' : '#86efac'
+                                                            }}>
+                                                                {statusMsg}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                )}
+                                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Or paste address:</div>
+                                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.35rem' }}>
+                                                    <input
+                                                        placeholder="0x..."
+                                                        value={roleContractInput}
+                                                        onChange={e => setRoleContractInput(e.target.value)}
+                                                        style={{
+                                                            flex: 1,
+                                                            padding: '0.4rem 0.6rem',
+                                                            background: '#0f172a',
+                                                            border: '1px solid #475569',
+                                                            borderRadius: '0.35rem',
+                                                            color: '#e2e8f0',
+                                                            fontSize: '0.8rem',
+                                                            fontFamily: 'monospace'
+                                                        }}
+                                                    />
+                                                    <button
+                                                        onClick={async () => {
+                                                            const addr = roleContractInput.trim();
+                                                            if (!addr || !addr.startsWith('0x') || addr.length !== 42) {
+                                                                setStatusMsg('❌ Enter a valid contract address');
+                                                                return;
+                                                            }
+                                                            try {
+                                                                setRoleContractRegistering(true);
+                                                                const c = new ethers.Contract(posAddress, PoSABI, wallet.signer);
+                                                                const tx = await c.registerRoleContract(addr);
+                                                                await tx.wait();
+                                                                setMyStake(prev => ({ ...prev, roleContract: addr }));
+                                                                setRoleContractInput('');
+                                                                setStatusMsg('✅ Contract registered!');
+                                                                setTimeout(() => setStatusMsg(''), 3000);
+                                                            } catch (e) {
+                                                                setStatusMsg('❌ ' + (e.reason || e.message));
+                                                            } finally {
+                                                                setRoleContractRegistering(false);
+                                                            }
+                                                        }}
+                                                        disabled={roleContractRegistering || !roleContractInput.trim()}
+                                                        style={{
+                                                            padding: '0.4rem 0.75rem',
+                                                            background: !roleContractInput.trim() ? '#475569' : '#10b981',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            borderRadius: '0.35rem',
+                                                            cursor: !roleContractInput.trim() ? 'not-allowed' : 'pointer',
+                                                            fontWeight: 'bold',
+                                                            fontSize: '0.8rem'
+                                                        }}
+                                                    >
+                                                        {roleContractRegistering ? '...' : 'Register'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <a href="/walkthrough.html" target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.8rem', color: '#60a5fa', marginTop: '0.5rem', display: 'inline-block' }}>
+                                        Open full walkthrough →
+                                    </a>
+                                    {ROLE_CONTRACT_TEMPLATES[myStake.role]?.template && (
+                                        <div style={{ marginTop: '0.5rem' }}>
+                                            <button
+                                                onClick={() => setRoleTemplateExpanded(!roleTemplateExpanded)}
+                                                style={{
+                                                    background: 'transparent',
+                                                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                                                    color: '#94a3b8',
+                                                    padding: '0.3rem 0.6rem',
+                                                    borderRadius: '0.25rem',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.75rem'
+                                                }}
+                                            >
+                                                {roleTemplateExpanded ? '▼ Hide Solidity source' : '▶ View Solidity source'}
+                                            </button>
+                                            {roleTemplateExpanded && (
+                                                <pre style={{
+                                                    marginTop: '0.5rem',
+                                                    padding: '0.75rem',
+                                                    background: '#0f172a',
+                                                    borderRadius: '0.5rem',
+                                                    fontSize: '0.75rem',
+                                                    overflow: 'auto',
+                                                    maxHeight: '240px',
+                                                    color: '#94a3b8'
+                                                }}>
+                                                    {ROLE_CONTRACT_TEMPLATES[myStake.role].template}
+                                                </pre>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
                     </div>
-                    
-                    {/* Quick Actions */}
+                    )}
+
+                    {/* Quick Actions - No faucet; instructor funds students (hidden when must create wallet first) */}
+                    {!mustCreateWalletFirst && (
                     <div style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(3, 1fr)',
+                        gridTemplateColumns: 'repeat(2, 1fr)',
                         gap: '1rem',
                         marginBottom: '1.5rem'
                     }}>
-                                <button 
-                                    onClick={requestFunds}
-                                    disabled={statusMsg.includes("Requesting") || statusMsg.includes("Processing")}
-                            style={{
-                                background: '#10b981',
-                                color: 'white',
-                                border: 'none',
-                                padding: '1.25rem',
-                                borderRadius: '0.75rem',
-                                cursor: 'pointer',
-                                fontSize: '1rem',
-                                fontWeight: 'bold',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                gap: '0.5rem'
-                            }}
-                        >
-                            <span style={{fontSize: '2rem'}}>🚰</span>
-                            {statusMsg.includes("Requesting") || statusMsg.includes("Processing") ? "Processing..." : "Get 5 ETH"}
-                                </button>
-                        
+                        <div style={{
+                            gridColumn: '1 / -1',
+                            padding: '1rem 1.25rem',
+                            background: parseFloat(wallet.balance || 0) === 0 ? 'rgba(251, 191, 36, 0.25)' : 'rgba(251, 191, 36, 0.15)',
+                            borderRadius: '0.75rem',
+                            border: '1px solid rgba(251, 191, 36, 0.4)',
+                            color: '#fcd34d',
+                            fontSize: '0.95rem'
+                        }}>
+                            <strong>💰 Test ETH:</strong> Only the instructor can issue funds.
+                            {parseFloat(wallet.balance || 0) === 0 && wallet.address && (
+                                <div style={{marginTop: '0.75rem', fontSize: '0.9rem'}}>
+                                    <span style={{opacity: 0.95}}>No gas yet? Copy your address and share with your instructor:</span>
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        marginTop: '0.5rem',
+                                        background: 'rgba(0,0,0,0.2)',
+                                        padding: '0.5rem 0.75rem',
+                                        borderRadius: '0.5rem',
+                                        fontFamily: 'monospace',
+                                        fontSize: '0.8rem',
+                                        wordBreak: 'break-all'
+                                    }}>
+                                        <span style={{color: '#e2e8f0'}}>{wallet.address}</span>
+                                        <button
+                                            onClick={async () => {
+                                                const ok = await copyToClipboard(wallet.address);
+                                                setStatusMsg(ok ? '✅ Address copied! Share with instructor.' : 'Copy failed — select address manually');
+                                                setTimeout(() => setStatusMsg(''), 2000);
+                                            }}
+                                            style={{
+                                                padding: '0.25rem 0.5rem',
+                                                background: '#3b82f6',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '0.25rem',
+                                                cursor: 'pointer',
+                                                fontSize: '0.75rem',
+                                                whiteSpace: 'nowrap'
+                                            }}
+                                        >
+                                            📋 Copy
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    const r = await fetch('/lab-api/fund-request', {
+                                                        method: 'POST',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({ address: wallet.address, nickname: wallet.nickname || myNickname })
+                                                    });
+                                                    if (r.ok) {
+                                                        setStatusMsg('✅ Fund request sent! Instructor will be notified.');
+                                                    } else {
+                                                        setStatusMsg('Request failed — try copying your address.');
+                                                    }
+                                                } catch {
+                                                    setStatusMsg('Request failed — Lab API may be offline.');
+                                                }
+                                                setTimeout(() => setStatusMsg(''), 3000);
+                                            }}
+                                            style={{
+                                                padding: '0.25rem 0.5rem',
+                                                background: '#10b981',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '0.25rem',
+                                                cursor: 'pointer',
+                                                fontSize: '0.75rem',
+                                                whiteSpace: 'nowrap'
+                                            }}
+                                        >
+                                            📤 Request funds
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                         <button
                             onClick={() => document.getElementById('send-section').scrollIntoView({behavior: 'smooth'})}
                             style={{
@@ -9720,7 +10334,7 @@ function App() {
                         </button>
                         
                         <button
-                            onClick={() => document.getElementById('stake-section').scrollIntoView({behavior: 'smooth'})}
+                            onClick={() => setView('beacon-lab')}
                             style={{
                                 background: '#8b5cf6',
                                 color: 'white',
@@ -9736,11 +10350,32 @@ function App() {
                                 gap: '0.5rem'
                             }}
                         >
-                            <span style={{fontSize: '2rem'}}>🏦</span>
-                            Stake
+                            <span style={{fontSize: '2rem'}}>⛓️</span>
+                            Beacon Lab
+                        </button>
+                        <button
+                            onClick={() => setView('contract-builder-lab')}
+                            style={{
+                                background: '#0ea5e9',
+                                color: 'white',
+                                border: 'none',
+                                padding: '1.25rem',
+                                borderRadius: '0.75rem',
+                                cursor: 'pointer',
+                                fontSize: '1rem',
+                                fontWeight: 'bold',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '0.5rem'
+                            }}
+                        >
+                            <span style={{fontSize: '2rem'}}>📜</span>
+                            Contract Lab
                         </button>
                     </div>
-                    
+                    )}
+
                     <div className="live-grid">
                         {/* Assets / Portfolio */}
                         <section className="card">
@@ -9777,44 +10412,8 @@ function App() {
                                     <div style={{textAlign: 'right'}}>
                                         <div style={{fontWeight: 'bold', color: '#f8fafc'}}>{parseFloat(wallet.balance || 0).toFixed(4)} ETH</div>
                                         <div style={{fontSize: '0.85rem', color: '#94a3b8'}}>${(parseFloat(wallet.balance || 0) * 3000).toFixed(2)}</div>
-                                </div>
-                            </div>
-                            
-                                {/* Staked ETH */}
-                                {parseFloat(myStake.amount) > 0 && (
-                                    <div style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        padding: '1rem',
-                                        background: 'rgba(139,92,246,0.1)',
-                                        borderRadius: '0.5rem',
-                                        border: '1px solid rgba(139,92,246,0.3)'
-                                    }}>
-                                        <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-                                            <div style={{
-                                                width: '40px',
-                                                height: '40px',
-                                                borderRadius: '50%',
-                                                background: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                fontSize: '1.2rem'
-                                            }}>
-                                                🏦
-                                            </div>
-                                            <div>
-                                                <div style={{fontWeight: 'bold', color: '#f8fafc'}}>Staked ETH</div>
-                                                <div style={{fontSize: '0.85rem', color: '#94a3b8'}}>Earning rewards</div>
-                                            </div>
-                                        </div>
-                                        <div style={{textAlign: 'right'}}>
-                                            <div style={{fontWeight: 'bold', color: '#f8fafc'}}>{parseFloat(myStake.amount).toFixed(4)} ETH</div>
-                                            <div style={{fontSize: '0.85rem', color: '#86efac'}}>+{parseFloat(myStake.reward).toFixed(6)} rewards</div>
-                                        </div>
                                     </div>
-                                )}
+                                </div>
                             </div>
                         </section>
 
@@ -9868,476 +10467,76 @@ function App() {
                             </div>
                         </section>
 
-                        {/* Staking Section - Enhanced */}
+                        {/* Beacon Chain Lab - staking moved here */}
                         <section className="card" id="stake-section">
-                            <h3>🏦 Proof of Stake - Become a Validator</h3>
+                            <h3>⛓️ Beacon Chain Lab</h3>
                             <p style={{fontSize: '14px', color: '#cbd5e1', marginBottom: '15px'}}>
-                                Stake your ETH to participate in block validation and earn rewards!
+                                Stake, attest, and experience consensus. Use the Beacon Chain Lab for validator activities.
                             </p>
-                            
-                            {/* Network Stats Bar */}
-                            <div style={{
-                                display: 'grid', 
-                                gridTemplateColumns: 'repeat(3, 1fr)', 
-                                gap: '10px', 
-                                marginBottom: '15px',
-                                padding: '12px',
-                                background: 'rgba(139, 92, 246, 0.15)',
-                                borderRadius: '8px',
-                                border: '1px solid rgba(139, 92, 246, 0.3)'
-                            }}>
-                                <div style={{textAlign: 'center'}}>
-                                    <div style={{fontSize: '0.75rem', color: '#a78bfa'}}>Current APY</div>
-                                    <div style={{fontSize: '1.1rem', fontWeight: 'bold', color: '#fbbf24'}}>{currentAPY.toFixed(2)}%</div>
-                                </div>
-                                <div style={{textAlign: 'center'}}>
-                                    <div style={{fontSize: '0.75rem', color: '#a78bfa'}}>Epoch</div>
-                                    <div style={{fontSize: '1.1rem', fontWeight: 'bold', color: '#22d3ee'}}>{currentEpoch}</div>
-                                </div>
-                                <div style={{textAlign: 'center'}}>
-                                    <div style={{fontSize: '0.75rem', color: '#a78bfa'}}>Next Epoch</div>
-                                    <div style={{fontSize: '1.1rem', fontWeight: 'bold', color: '#34d399'}}>{timeUntilNextEpoch}s</div>
-                                </div>
-                            </div>
-                            
-                            <div style={{background: 'rgba(59,130,246,0.15)', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid rgba(59,130,246,0.3)'}}>
-                                <p style={{fontSize: '13px', marginBottom: '10px', color: '#e2e8f0'}}>
-                                    <strong style={{color: '#93c5fd'}}>How it works:</strong>
-                                </p>
-                                <ul style={{fontSize: '12px', paddingLeft: '20px', margin: 0, color: '#cbd5e1'}}>
-                                    <li>Minimum stake: 1 ETH | Unbonding: 60 seconds</li>
-                                    <li>Rewards decrease as more validators join (dilution)</li>
-                                    <li>Must attest each epoch or face small penalties</li>
-                                    <li>Misbehavior = slashing (5% stake penalty)</li>
-                                </ul>
-                            </div>
-                            
-                            {/* Validator Stats (if staking) */}
-                            {parseFloat(myStake.amount) > 0 && (
-                                <div style={{
-                                    background: 'rgba(34, 211, 238, 0.1)',
-                                    padding: '15px',
-                                    borderRadius: '8px',
-                                    marginBottom: '15px',
-                                    border: '1px solid rgba(34, 211, 238, 0.3)'
-                                }}>
-                                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px'}}>
-                                        <div>
-                                            <div style={{fontSize: '0.75rem', color: '#94a3b8'}}>Your Stake</div>
-                                            <div style={{fontSize: '1.1rem', fontWeight: 'bold', color: '#a78bfa'}}>
-                                                {parseFloat(myStake.amount).toFixed(4)} ETH
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div style={{fontSize: '0.75rem', color: '#94a3b8'}}>Pending Rewards</div>
-                                            <div style={{fontSize: '1.1rem', fontWeight: 'bold', color: '#34d399'}}>
-                                                +{parseFloat(myStake.reward).toFixed(6)} ETH
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div style={{fontSize: '0.75rem', color: '#94a3b8'}}>Blocks Proposed</div>
-                                            <div style={{fontSize: '1.1rem', fontWeight: 'bold', color: '#8b5cf6'}}>
-                                                {myStake.blocksProposed}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div style={{fontSize: '0.75rem', color: '#94a3b8'}}>Slashes</div>
-                                            <div style={{fontSize: '1.1rem', fontWeight: 'bold', color: myStake.slashCount > 0 ? '#ef4444' : '#64748b'}}>
-                                                {myStake.slashCount}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Attestation Status */}
-                                    <div style={{
-                                        marginTop: '12px',
-                                        padding: '10px',
-                                        background: myStake.hasAttestedThisEpoch ? 'rgba(34, 197, 94, 0.2)' : 'rgba(251, 191, 36, 0.2)',
-                                        borderRadius: '6px',
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center'
-                                    }}>
-                                        <span style={{fontSize: '0.85rem', color: myStake.hasAttestedThisEpoch ? '#34d399' : '#fbbf24'}}>
-                                            {myStake.hasAttestedThisEpoch ? '✅ Attested this epoch' : '⚠️ Attestation needed!'}
-                                        </span>
-                                        {!myStake.hasAttestedThisEpoch && (
-                                            <button
-                                                onClick={async () => {
-                                                    try {
-                                                        const code = await provider.getCode(posAddress);
-                                                        if (code === '0x' || code === '0x0') {
-                                                            setStatusMsg("❌ Contract not deployed");
-                                                            return;
-                                                        }
-                                                        setStatusMsg('📝 Submitting attestation...');
-                                                        const contract = new ethers.Contract(posAddress, PoSABI, wallet.signer);
-                                                        const tx = await contract.attest();
-                                                        await tx.wait();
-                                                        setStatusMsg('✅ Attestation submitted!');
-                                                        setTimeout(() => setStatusMsg(''), 3000);
-                                                    } catch (e) {
-                                                        setStatusMsg('❌ Attestation failed: ' + (e.reason || e.message));
-                                                    }
-                                                }}
-                                                style={{
-                                                    padding: '6px 12px',
-                                                    background: '#fbbf24',
-                                                    color: '#1e293b',
-                                                    border: 'none',
-                                                    borderRadius: '6px',
-                                                    cursor: 'pointer',
-                                                    fontWeight: 'bold',
-                                                    fontSize: '0.8rem'
-                                                }}
-                                            >
-                                                📝 Attest Now
-                                            </button>
-                                        )}
-                                    </div>
-                                    
-                                    {/* Unbonding Timer */}
-                                    {withdrawalRequested && myStake.unbondingTime > 0 && myStake.unbondingTime < 9999999999 && (
-                                        <div style={{
-                                            marginTop: '12px',
-                                            padding: '10px',
-                                            background: 'rgba(59, 130, 246, 0.2)',
-                                            borderRadius: '6px',
-                                            textAlign: 'center'
-                                        }}>
-                                            <span style={{fontSize: '0.85rem', color: '#93c5fd'}}>
-                                                ⏳ Unbonding: {myStake.unbondingTime} seconds remaining
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                            
-                            {/* Stake Amount Input */}
-                            <div style={{marginBottom: '1rem'}}>
-                                <label style={{display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#cbd5e1'}}>
-                                    Stake Amount (ETH)
-                                </label>
-                                <div style={{display: 'flex', gap: '0.5rem', alignItems: 'center'}}>
-                                    <input 
-                                        type="number"
-                                        step="0.1"
-                                        min="1"
-                                        placeholder="1.0" 
-                                        value={stakeAmount}
-                                        onChange={e => setStakeAmount(e.target.value)}
-                                        style={{flex: 1}}
-                                    />
-                                    <div style={{display: 'flex', gap: '0.25rem'}}>
-                                        <button 
-                                            onClick={() => setStakeAmount("1")}
-                                            style={{
-                                                padding: '0.5rem 0.75rem',
-                                                background: 'rgba(59,130,246,0.2)',
-                                                border: '1px solid #3b82f6',
-                                                color: '#93c5fd',
-                                                borderRadius: '0.25rem',
-                                                cursor: 'pointer',
-                                                fontSize: '0.85rem'
-                                            }}
-                                        >
-                                            1 ETH
-                                        </button>
-                                        <button 
-                                            onClick={() => setStakeAmount("5")}
-                                            style={{
-                                                padding: '0.5rem 0.75rem',
-                                                background: 'rgba(59,130,246,0.2)',
-                                                border: '1px solid #3b82f6',
-                                                color: '#93c5fd',
-                                                borderRadius: '0.25rem',
-                                                cursor: 'pointer',
-                                                fontSize: '0.85rem'
-                                            }}
-                                        >
-                                            5 ETH
-                                        </button>
-                                        <button 
-                                            onClick={() => setStakeAmount(wallet.balance)}
-                                            style={{
-                                                padding: '0.5rem 0.75rem',
-                                                background: 'rgba(59,130,246,0.2)',
-                                                border: '1px solid #3b82f6',
-                                                color: '#93c5fd',
-                                                borderRadius: '0.25rem',
-                                                cursor: 'pointer',
-                                                fontSize: '0.85rem'
-                                            }}
-                                        >
-                                            MAX
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {/* ⚠️ RISK WARNING - Decision Support */}
-                            <div style={{
-                                padding: '12px',
-                                background: 'rgba(251, 191, 36, 0.1)',
-                                border: '1px solid rgba(251, 191, 36, 0.4)',
-                                borderRadius: '8px',
-                                marginBottom: '12px'
-                            }}>
-                                <div style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    color: '#fcd34d',
-                                    fontWeight: '600',
-                                    fontSize: '0.9rem',
-                                    marginBottom: '6px'
-                                }}>
-                                    ⚠️ Before You Stake
-                                </div>
-                                <ul style={{
-                                    margin: 0,
-                                    paddingLeft: '1.25rem',
-                                    fontSize: '0.85rem',
-                                    color: '#fde68a',
-                                    lineHeight: '1.6'
-                                }}>
-                                    <li>Staked ETH is <strong>locked</strong> for minimum 30 seconds</li>
-                                    <li>Withdrawal requires 60-second unbonding period</li>
-                                    <li>Missing attestations = small penalties</li>
-                                    <li>Misbehavior = 5% slash penalty</li>
-                                </ul>
-                                <div style={{
-                                    marginTop: '8px',
-                                    fontSize: '0.8rem',
-                                    color: '#fbbf24',
-                                    fontStyle: 'italic'
-                                }}>
-                                    💡 This is test ETH with no real value—experiment freely!
-                                </div>
-                            </div>
-                            
-                            <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
-                                <button 
-                                    onClick={async () => {
-                                        if (!posAddress || !wallet.signer) return setStatusMsg("Connect wallet first");
-                                        if (!stakeAmount || parseFloat(stakeAmount) < 1) {
-                                            return setStatusMsg("⚠️ Minimum stake is 1 ETH");
-                                        }
-                                        if (parseFloat(stakeAmount) > parseFloat(wallet.balance)) {
-                                            return setStatusMsg("⚠️ Insufficient balance");
-                                        }
-                                        try {
-                                            const code = await provider.getCode(posAddress);
-                                            if (code === '0x' || code === '0x0') {
-                                                return setStatusMsg("❌ Contract not deployed. Is the instructor's node running?");
-                                            }
-                                            setStatusMsg(`Staking ${stakeAmount} ETH...`);
-                                            const contract = new ethers.Contract(posAddress, PoSABI, wallet.signer);
-                                            const tx = await contract.stake({ value: ethers.parseEther(stakeAmount) });
-                                            const receipt = await tx.wait();
-                                            setStatusMsg(`✅ Successfully staked ${stakeAmount} ETH!`);
-                                            
-                                            // Add to transaction history
-                                            setTxHistory(prev => [{
-                                              hash: tx.hash,
-                                              from: wallet.address,
-                                              to: posAddress,
-                                              value: stakeAmount,
-                                              blockNumber: receipt.blockNumber,
-                                              timestamp: Math.floor(Date.now() / 1000),
-                                              type: 'sent',
-                                              label: 'Stake'
-                                            }, ...prev].slice(0, 20));
-                                            
-                                            // Update balance
-                                            const bal = await provider.getBalance(wallet.address);
-                                            setWallet(prev => ({ ...prev, balance: ethers.formatEther(bal) }));
-                                            
-                                            syncBlockchainData();
-                                            setTimeout(() => setStatusMsg(""), 3000);
-                                        } catch (e) {
-                                            setStatusMsg("Staking failed: " + (e.message || "Unknown error"));
-                                            setTimeout(() => setStatusMsg(""), 5000);
-                                        }
-                                    }}
-                                    style={{
-                                        padding: '1rem',
-                                        background: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)',
-                                        color: 'white',
-                                        border: 'none',
-                                        borderRadius: '0.5rem',
-                                        fontSize: '1rem',
-                                        fontWeight: 'bold',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    🏦 Stake {stakeAmount || '1'} ETH
-                                </button>
-                                {/* Two-Step Withdrawal Process */}
-                                {!withdrawalRequested ? (
-                                    <>
-                                        {/* Show lock time if applicable */}
-                                        {parseFloat(myStake.amount) > 0 && myStake.minStakeDuration > 0 && (
-                                            <div style={{
-                                                padding: '0.75rem',
-                                                background: 'rgba(251, 191, 36, 0.2)',
-                                                border: '1px solid rgba(251, 191, 36, 0.4)',
-                                                borderRadius: '0.5rem',
-                                                textAlign: 'center',
-                                                fontSize: '0.9rem',
-                                                color: '#fbbf24'
-                                            }}>
-                                                ⏳ Stake locked: {myStake.minStakeDuration}s remaining
-                                            </div>
-                                        )}
-                                        <button 
-                                            onClick={async () => {
-                                                console.log("[Withdrawal] Button clicked, myStake:", myStake);
-                                                if (!posAddress || !wallet.signer) {
-                                                    setStatusMsg("⚠️ Connect wallet first");
-                                                    return;
-                                                }
-                                                if (parseFloat(myStake.amount) === 0) {
-                                                    setStatusMsg("⚠️ No stake to withdraw - stake some ETH first!");
-                                                    return;
-                                                }
-                                                if (myStake.minStakeDuration > 0) {
-                                                    setStatusMsg(`⏳ Must wait ${myStake.minStakeDuration}s more (min stake duration)`);
-                                                    return;
-                                                }
-                                                try {
-                                                    const code = await provider.getCode(posAddress);
-                                                    if (code === '0x' || code === '0x0') {
-                                                        setStatusMsg("❌ Contract not deployed");
-                                                        return;
-                                                    }
-                                                    setStatusMsg("📝 Requesting withdrawal...");
-                                                    const contract = new ethers.Contract(posAddress, PoSABI, wallet.signer);
-                                                    const tx = await contract.requestWithdrawal();
-                                                    await tx.wait();
-                                                    setStatusMsg("✅ Withdrawal requested! 60s unbonding started.");
-                                                    setWithdrawalRequested(true);
-                                                    syncBlockchainData();
-                                                    setTimeout(() => setStatusMsg(""), 5000);
-                                                } catch (e) {
-                                                    console.error("[Withdrawal] Error:", e);
-                                                    setStatusMsg("❌ Request failed: " + (e.reason || e.message || "Unknown error"));
-                                                    setTimeout(() => setStatusMsg(""), 5000);
-                                                }
-                                            }}
-                                            disabled={parseFloat(myStake.amount) === 0 || myStake.minStakeDuration > 0}
-                                            style={{
-                                                padding: '1rem',
-                                                background: (parseFloat(myStake.amount) === 0 || myStake.minStakeDuration > 0) 
-                                                    ? '#374151' 
-                                                    : 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)',
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '0.5rem',
-                                                fontSize: '1rem',
-                                                fontWeight: 'bold',
-                                                cursor: (parseFloat(myStake.amount) === 0 || myStake.minStakeDuration > 0) ? 'not-allowed' : 'pointer',
-                                                opacity: (parseFloat(myStake.amount) === 0 || myStake.minStakeDuration > 0) ? 0.6 : 1
-                                            }}
-                                        >
-                                            {parseFloat(myStake.amount) === 0 
-                                                ? '⏳ Stake ETH first'
-                                                : myStake.minStakeDuration > 0 
-                                                    ? `⏳ Wait ${myStake.minStakeDuration}s`
-                                                    : '⏳ Request Withdrawal'}
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        {/* Unbonding Progress */}
-                                        {myStake.unbondingTime > 0 && myStake.unbondingTime < 9999999999 && (
-                                            <div style={{
-                                                padding: '1rem',
-                                                background: 'rgba(59, 130, 246, 0.15)',
-                                                border: '2px solid rgba(59, 130, 246, 0.5)',
-                                                borderRadius: '0.75rem',
-                                                textAlign: 'center'
-                                            }}>
-                                                <div style={{fontSize: '0.85rem', color: '#94a3b8'}}>🔄 UNBONDING</div>
-                                                <div style={{fontSize: '2rem', fontWeight: 'bold', color: '#3b82f6', fontFamily: 'monospace'}}>
-                                                    {myStake.unbondingTime}s
-                                                </div>
-                                                <div style={{marginTop: '0.75rem', height: '8px', background: 'rgba(30, 41, 59, 0.8)', borderRadius: '4px', overflow: 'hidden'}}>
-                                                    <div style={{
-                                                        width: `${Math.max(0, 100 - (myStake.unbondingTime / 60 * 100))}%`,
-                                                        height: '100%',
-                                                        background: 'linear-gradient(90deg, #3b82f6, #60a5fa)',
-                                                        transition: 'width 1s linear'
-                                                    }} />
-                                                </div>
-                                            </div>
-                                        )}
-                                        <div style={{display: 'flex', gap: '0.5rem'}}>
-                                            <button 
-                                                onClick={async () => {
-                                                    if (!posAddress || !wallet.signer) return setStatusMsg("Connect wallet first");
-                                                    if (myStake.unbondingTime > 0 && myStake.unbondingTime < 9999999999) {
-                                                        return setStatusMsg(`⏳ Wait ${myStake.unbondingTime}s more`);
-                                                    }
-                                                    try {
-                                                        const code = await provider.getCode(posAddress);
-                                                        if (code === '0x' || code === '0x0') return setStatusMsg("❌ Contract not deployed");
-                                                        setStatusMsg("💸 Completing withdrawal...");
-                                                        const contract = new ethers.Contract(posAddress, PoSABI, wallet.signer);
-                                                        const tx = await contract.withdraw();
-                                                        await tx.wait();
-                                                        setStatusMsg("✅ Withdrew stake + rewards!");
-                                                        setWithdrawalRequested(false);
-                                                        syncBlockchainData();
-                                                        setTimeout(() => setStatusMsg(""), 3000);
-                                                    } catch (e) {
-                                                        setStatusMsg("❌ Withdraw failed: " + (e.reason || e.message || "Unknown error"));
-                                                    }
-                                                }}
-                                                disabled={myStake.unbondingTime > 0 && myStake.unbondingTime < 9999999999}
-                                                style={{
-                                                    flex: 1,
-                                                    padding: '1rem',
-                                                    background: (myStake.unbondingTime > 0 && myStake.unbondingTime < 9999999999) 
-                                                        ? '#374151' 
-                                                        : 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
-                                                    color: 'white',
-                                                    border: 'none',
-                                                    borderRadius: '0.5rem',
-                                                    fontSize: '1rem',
-                                                    fontWeight: 'bold',
-                                                    cursor: (myStake.unbondingTime > 0 && myStake.unbondingTime < 9999999999) ? 'not-allowed' : 'pointer'
-                                                }}
-                                            >
-                                                {(myStake.unbondingTime > 0 && myStake.unbondingTime < 9999999999) 
-                                                    ? `⏳ ${myStake.unbondingTime}s remaining` 
-                                                    : '💸 Complete Withdrawal'}
-                                            </button>
-                                            <button
-                                                onClick={async () => {
-                                                    try {
-                                                        const code = await provider.getCode(posAddress);
-                                                        if (code === '0x' || code === '0x0') return setStatusMsg("❌ Contract not deployed");
-                                                        setStatusMsg("Cancelling...");
-                                                        const contract = new ethers.Contract(posAddress, PoSABI, wallet.signer);
-                                                        const tx = await contract.cancelWithdrawal();
-                                                        await tx.wait();
-                                                        setStatusMsg("✅ Withdrawal cancelled");
-                                                        setWithdrawalRequested(false);
-                                                        syncBlockchainData();
-                                                    } catch (e) {
-                                                        setStatusMsg("❌ Cancel failed: " + (e.reason || e.message));
-                                                    }
-                                                }}
-                                                style={{padding: '1rem', background: '#64748b', color: 'white', border: 'none', borderRadius: '0.5rem', fontSize: '0.85rem', cursor: 'pointer'}}
-                                            >
-                                                Cancel
-                                            </button>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                            
+                            <button
+                                onClick={() => setView('beacon-lab')}
+                                style={{
+                                    width: '100%',
+                                    padding: '1rem',
+                                    background: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '0.5rem',
+                                    fontSize: '1rem',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Open Beacon Chain Lab →
+                            </button>
+                        </section>
+
+                        {/* Smart Contract Lab */}
+                        <section className="card">
+                            <h3>📜 Smart Contract Lab</h3>
+                            <p style={{fontSize: '14px', color: '#cbd5e1', marginBottom: '15px'}}>
+                                Build, compile, and deploy smart contracts from templates. Deploy and share with classmates.
+                            </p>
+                            <button
+                                onClick={() => setView('contract-builder-lab')}
+                                style={{
+                                    width: '100%',
+                                    padding: '1rem',
+                                    background: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '0.5rem',
+                                    fontSize: '1rem',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Open Smart Contract Lab →
+                            </button>
+                        </section>
+
+                        {/* Tokenization Lab */}
+                        <section className="card">
+                            <h3>🪙 Tokenization Lab</h3>
+                            <p style={{fontSize: '14px', color: '#cbd5e1', marginBottom: '15px'}}>
+                                Create and manage ERC-20 tokens and NFTs. Mint, transfer, and explore tokenization concepts hands-on.
+                            </p>
+                            <button
+                                onClick={() => setView('tokenization-lab')}
+                                style={{
+                                    width: '100%',
+                                    padding: '1rem',
+                                    background: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)',
+                                    color: '#1e293b',
+                                    border: 'none',
+                                    borderRadius: '0.5rem',
+                                    fontSize: '1rem',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Open Tokenization Lab →
+                            </button>
                         </section>
 
                         {/* Contract Config */}
@@ -10378,6 +10577,58 @@ function App() {
                                     </small>
                                 )}
                             </div>
+                            <div className="config-field">
+                                <label>Car Sale address (optional, for Car Sale scenario):</label>
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <input 
+                                        placeholder="0x..." 
+                                        value={carSaleAddr}
+                                        onChange={e => {
+                                            const v = e.target.value;
+                                            localStorage.setItem('car_sale_addr', v);
+                                            setCarSaleAddr(v);
+                                            setCarSaleCheckResult(null);
+                                        }}
+                                        style={{ flex: 1, minWidth: '200px' }}
+                                    />
+                                    <button
+                                        onClick={checkCarSaleState}
+                                        disabled={carSaleCheckLoading || !provider}
+                                        style={{
+                                            padding: '0.4rem 0.75rem',
+                                            background: carSaleCheckLoading ? '#64748b' : '#fbbf24',
+                                            color: '#1e293b',
+                                            border: 'none',
+                                            borderRadius: '0.35rem',
+                                            cursor: carSaleCheckLoading ? 'wait' : 'pointer',
+                                            fontWeight: 'bold',
+                                            fontSize: '0.85rem'
+                                        }}
+                                    >
+                                        {carSaleCheckLoading ? '⏳ Checking...' : 'Check CarSale State'}
+                                    </button>
+                                </div>
+                                {carSaleCheckResult && (
+                                    <div style={{
+                                        marginTop: '0.5rem',
+                                        padding: '0.75rem',
+                                        background: carSaleCheckResult.error ? 'rgba(248,113,113,0.15)' : 'rgba(34,197,94,0.15)',
+                                        borderRadius: '0.5rem',
+                                        border: `1px solid ${carSaleCheckResult.error ? 'rgba(248,113,113,0.4)' : 'rgba(34,197,94,0.4)'}`,
+                                        fontSize: '0.85rem',
+                                        color: carSaleCheckResult.error ? '#fca5a5' : '#86efac'
+                                    }}>
+                                        {carSaleCheckResult.error ? (
+                                            <>❌ {carSaleCheckResult.error}</>
+                                        ) : (
+                                            <>
+                                                <strong>State:</strong> {carSaleCheckResult.state} | <strong>Price:</strong> {carSaleCheckResult.price} ETH | <strong>Deposit:</strong> {carSaleCheckResult.deposit} ETH<br />
+                                                Seller: {carSaleCheckResult.seller} | Buyer: {carSaleCheckResult.buyer} | Mechanic: {carSaleCheckResult.mechanic}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                             <div className="connection-status">
                                 {nodeStatus.connected ? (
                                     <span className="status-ok">✅ Connected to blockchain</span>
@@ -10385,11 +10636,37 @@ function App() {
                                     <span className="status-error">❌ Not connected - check RPC URL</span>
                                 )}
                             </div>
+                            <NodeGraph
+                                validators={validators}
+                                myAddress={wallet?.address}
+                                rpcUrl={rpcUrl}
+                            />
+                            <ChainSearch provider={provider} rpcUrl={rpcUrl} />
                         </section>
 
                         {/* Transaction History */}
                         <section className="card full-width">
-                            <h3>📜 Transaction History</h3>
+                            <button
+                                onClick={() => setTxHistoryOpen(!txHistoryOpen)}
+                                style={{
+                                    width: '100%',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: 'inherit',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                    margin: 0,
+                                    fontSize: 'inherit',
+                                    textAlign: 'left'
+                                }}
+                            >
+                                <h3 style={{margin: 0}}>📜 Transaction History</h3>
+                                <span style={{fontSize: '0.9rem', color: '#94a3b8'}}>{txHistoryOpen ? '▼' : '▶'}</span>
+                            </button>
+                            {txHistoryOpen && (
                             <div style={{marginTop: '1rem'}}>
                                 {txHistory.length === 0 ? (
                                     <div style={{textAlign: 'center', padding: '2rem', color: '#64748b'}}>
@@ -10467,6 +10744,7 @@ function App() {
                                     </div>
                                 )}
                             </div>
+                            )}
                         </section>
 
                         {/* Global Chat */}
@@ -10491,7 +10769,9 @@ function App() {
                                         </span>
                                     </div>
                                 ) : (
-                                    messages.map((msg, i) => (
+                                    messages
+                                        .filter(msg => !msg.text || !msg.text.startsWith('[ARTIFACT:'))
+                                        .map((msg, i) => (
                                         <div key={i} className={`msg ${msg.sender === wallet.address ? 'my-msg' : ''}`}>
                                             <div className="msg-header">
                                                 <span className="sender-name" onClick={() => {setRecipient(msg.sender); copyAddress(msg.sender)}}>
@@ -10531,6 +10811,262 @@ function App() {
                         </section>
                     </div>
                     
+                    {/* ========== EVIDENCE / ARTIFACTS (scenario clues) ========== */}
+                    {(artifacts.length > 0 || myStake.role) && (
+                    <div style={{
+                        marginTop: '2rem',
+                        padding: '1.5rem',
+                        background: '#1e293b',
+                        borderRadius: '1rem',
+                        border: '1px solid #334155'
+                    }}>
+                        <button
+                            onClick={() => setArtifactsOpen(!artifactsOpen)}
+                            style={{
+                                width: '100%',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#f8fafc',
+                                fontSize: '1.1rem',
+                                cursor: 'pointer',
+                                padding: '0.5rem 0'
+                            }}
+                        >
+                            <span>📂 Evidence & Artifacts {artifacts.length > 0 && <span style={{fontSize: '0.8rem', color: '#94a3b8'}}>({artifacts.length})</span>}</span>
+                            <span>{artifactsOpen ? '▼' : '▶'}</span>
+                        </button>
+                        {artifactsOpen && (
+                            <div style={{marginTop: '1rem'}}>
+                                <p style={{fontSize: '0.9rem', color: '#94a3b8', marginBottom: '0.75rem'}}>
+                                    <strong style={{color: '#e2e8f0'}}>{"What this is: "}</strong>
+                                    {"Your instructor posts clues in class chat using "}
+                                    <code style={{background: '#334155', padding: '0.1rem 0.3rem', borderRadius: '4px', fontSize: '0.8rem'}}>[ARTIFACT:...]</code>
+                                    {". Those messages appear here so you can review them together."}
+                                </p>
+                                <p style={{fontSize: '0.85rem', color: '#64748b', marginBottom: '0.75rem'}}>
+                                    <strong>{"Car Sale: "}</strong>
+                                    {"Inspection reports, seller disclosures—look for inconsistencies before completing a purchase. "}
+                                    <strong>{"Ransomware: "}</strong>
+                                    {"Forensics clues to trace the attacker."}
+                                </p>
+                                {artifacts.length === 0 ? (
+                                    <div style={{padding: '1rem', background: '#0f172a', borderRadius: '0.5rem', color: '#64748b', fontSize: '0.9rem'}}>
+                                        No artifacts yet. Your instructor will post clues in chat as the scenario unfolds.
+                                    </div>
+                                ) : (
+                                    <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
+                                        {artifacts.map((a, i) => (
+                                            <div key={i} style={{
+                                                padding: '1rem',
+                                                background: '#0f172a',
+                                                borderRadius: '0.5rem',
+                                                border: '1px solid #334155',
+                                                fontSize: '0.9rem',
+                                                color: '#e2e8f0'
+                                            }}>
+                                                <div style={{fontSize: '0.75rem', color: '#64748b', marginBottom: '0.5rem'}}>
+                                                    Artifact #{i + 1} · {new Date(a.timestamp * 1000).toLocaleString()}
+                                                </div>
+                                                {a.content}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    )}
+
+                    {/* ========== RANSOMWARE SCENARIO (Phase 7) ========== */}
+                    <div style={{
+                        marginTop: '2rem',
+                        padding: '1.5rem',
+                        background: '#1e293b',
+                        borderRadius: '1rem',
+                        border: '1px solid #334155'
+                    }}>
+                        <button
+                            onClick={() => setRansomScenarioOpen(!ransomScenarioOpen)}
+                            style={{
+                                width: '100%',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#f8fafc',
+                                fontSize: '1.1rem',
+                                cursor: 'pointer',
+                                padding: '0.5rem 0'
+                            }}
+                        >
+                            <span>🔐 Ransomware Forensics Scenario</span>
+                            <span>{ransomScenarioOpen ? '▼' : '▶'}</span>
+                        </button>
+                        {ransomScenarioOpen && (
+                            <div style={{marginTop: '1rem'}}>
+                                <p style={{fontSize: '0.9rem', color: '#94a3b8', marginBottom: '0.75rem'}}>
+                                    Victims pay ETH through the Ransom contract. Investigators trace the flow. Instructor deploys via Contract Builder and shares the address.
+                                </p>
+                                <div style={{display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap'}}>
+                                    <input
+                                        placeholder="Ransom contract address (0x...)"
+                                        value={ransomContractAddress}
+                                        onChange={e => {
+                                            setRansomContractAddress(e.target.value);
+                                            localStorage.setItem('ransom_addr', e.target.value);
+                                        }}
+                                        style={{
+                                            flex: 1,
+                                            minWidth: '200px',
+                                            padding: '0.5rem',
+                                            background: '#0f172a',
+                                            border: '1px solid #475569',
+                                            borderRadius: '0.5rem',
+                                            color: '#e2e8f0',
+                                            fontFamily: 'monospace',
+                                            fontSize: '0.85rem'
+                                        }}
+                                    />
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        placeholder="ETH"
+                                        value={ransomAmount}
+                                        onChange={e => setRansomAmount(e.target.value)}
+                                        style={{
+                                            width: '80px',
+                                            padding: '0.5rem',
+                                            background: '#0f172a',
+                                            border: '1px solid #475569',
+                                            borderRadius: '0.5rem',
+                                            color: '#e2e8f0'
+                                        }}
+                                    />
+                                    <button
+                                        onClick={async () => {
+                                            if (!ransomContractAddress || ransomContractAddress.length !== 42) {
+                                                setStatusMsg('❌ Enter valid Ransom contract address');
+                                                return;
+                                            }
+                                            if (!wallet.signer) {
+                                                setStatusMsg('❌ Wallet not ready');
+                                                return;
+                                            }
+                                            try {
+                                                const RansomABI = [{ inputs: [], name: 'payRansom', outputs: [], stateMutability: 'payable', type: 'function' }];
+                                                const c = new ethers.Contract(ransomContractAddress, RansomABI, wallet.signer);
+                                                const tx = await c.payRansom({ value: ethers.parseEther(ransomAmount) });
+                                                await tx.wait();
+                                                setStatusMsg('✅ Ransom paid. Investigators trace the flow!');
+                                                setTimeout(() => setStatusMsg(''), 3000);
+                                            } catch (e) {
+                                                setStatusMsg('❌ ' + (e.reason || e.message));
+                                            }
+                                        }}
+                                        disabled={!wallet.signer || !ransomContractAddress}
+                                        style={{
+                                            padding: '0.5rem 1rem',
+                                            background: (!wallet.signer || !ransomContractAddress) ? '#475569' : '#ef4444',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '0.5rem',
+                                            cursor: (!wallet.signer || !ransomContractAddress) ? 'not-allowed' : 'pointer',
+                                            fontWeight: 'bold'
+                                        }}
+                                    >
+                                        💸 Pay Ransom
+                                    </button>
+                                </div>
+                                <p style={{fontSize: '0.75rem', color: '#64748b'}}>
+                                    Instructor: Deploy via Contract Builder → Ransomware Payment. Set attacker address. Share contract address with class.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* ========== CONTRACT LAB ========== */}
+                    <div style={{
+                        marginTop: '2rem',
+                        padding: '1.5rem',
+                        background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(99, 102, 241, 0.1))',
+                        borderRadius: '1rem',
+                        border: '1px solid rgba(139, 92, 246, 0.3)'
+                    }}>
+                        <button
+                            onClick={() => setContractLabOpen(!contractLabOpen)}
+                            style={{
+                                width: '100%',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                background: 'transparent',
+                                border: 'none',
+                                color: '#f8fafc',
+                                fontSize: '1.1rem',
+                                cursor: 'pointer',
+                                padding: '0.5rem 0'
+                            }}
+                        >
+                            <span>🏗️ Contract Lab</span>
+                            <span>{contractLabOpen ? '▼' : '▶'}</span>
+                        </button>
+                        {contractLabOpen && (
+                            <div style={{marginTop: '1rem'}}>
+                                <ContractLab
+                                    provider={provider}
+                                    rpcUrl={rpcUrl}
+                                    wallet={wallet}
+                                    onLoadScript={(code) => {
+                                      setScriptCode(code);
+                                      setLoadCodeForConsole(code);
+                                      setScriptPlaygroundOpen(true);
+                                      setStatusMsg('✓ Script loaded! Lab Terminal expanded below — code will appear when the Hardhat prompt is ready.');
+                                      setTimeout(() => setStatusMsg(''), 4000);
+                                      setTimeout(() => document.getElementById('lab-terminal-section')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+                                    }}
+                                    setStatusMsg={setStatusMsg}
+                                />
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* ========== SCRIPT PLAYGROUND (Phase 6) ========== */}
+                    {/* ========== BLOCKCHAIN CONSOLE (REPL) ========== */}
+                    <div id="lab-terminal-section" style={{ marginTop: '2rem' }}>
+                        <button
+                            onClick={() => setScriptPlaygroundOpen(!scriptPlaygroundOpen)}
+                            style={{
+                                width: '100%',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                background: '#1a1a2e',
+                                border: '1px solid #1e293b',
+                                borderRadius: scriptPlaygroundOpen ? '0.75rem 0.75rem 0 0' : '0.75rem',
+                                color: '#f8fafc',
+                                fontSize: '1.1rem',
+                                cursor: 'pointer',
+                                padding: '0.75rem 1rem'
+                            }}
+                        >
+                            <span>🖥️ Lab Terminal</span>
+                            <span style={{fontSize: '0.8rem', color: '#64748b'}}>{scriptPlaygroundOpen ? '▼ collapse' : '▶ expand'}</span>
+                        </button>
+                        {scriptPlaygroundOpen && (
+                            <InlineTerminal
+                                loadCode={loadCodeForConsole}
+                                onLoadCodeConsumed={() => setLoadCodeForConsole('')}
+                                rpcUrl={rpcUrl}
+                                autoStartHardhat={true}
+                            />
+                        )}
+                    </div>
+                    
                     {/* ========== LAB COMPLETION & FEEDBACK SECTION ========== */}
                     <div style={{
                         marginTop: '2rem',
@@ -10564,10 +11100,9 @@ function App() {
                             marginTop: '1rem'
                         }}>
                             {[
-                                { label: 'Received funds from faucet', done: parseFloat(wallet.balance) > 0 },
+                                { label: 'Received funds from instructor', done: parseFloat(wallet.balance) > 0 },
                                 { label: 'Sent a transaction', done: txHistory.some(tx => tx.type === 'sent') },
                                 { label: 'Posted in class chat', done: messages.some(m => m.sender === wallet.address) },
-                                { label: 'Staked ETH (optional)', done: parseFloat(myStake.amount) > 0 },
                             ].map((item, idx) => (
                                 <div key={idx} style={{
                                     display: 'flex',
@@ -10594,15 +11129,6 @@ function App() {
                             ))}
                         </div>
                         
-                        {/* Show evaluation survey when enough activities are completed */}
-                        {(parseFloat(wallet.balance) > 0 && messages.some(m => m.sender === wallet.address)) && (
-                            <div style={{marginTop: '1.5rem'}}>
-                                <EvaluationSurvey onComplete={(data) => {
-                                    console.log('Lab evaluation submitted:', data);
-                                    setStatusMsg('🎉 Thank you for completing the evaluation!');
-                                }} />
-                            </div>
-                        )}
                     </div>
                     
                     {statusMsg && (
@@ -10673,7 +11199,7 @@ function App() {
                                             }}
                                         />
                                         <button
-                                            onClick={() => { navigator.clipboard.writeText(newWalletModal.address); }}
+                                            onClick={async () => { await copyToClipboard(newWalletModal.address); }}
                                             style={{
                                                 padding: '0.5rem 1rem',
                                                 background: 'rgba(59, 130, 246, 0.3)',
@@ -10706,7 +11232,7 @@ function App() {
                                             }}
                                         />
                                         <button
-                                            onClick={() => { navigator.clipboard.writeText(newWalletModal.privateKey); }}
+                                            onClick={async () => { await copyToClipboard(newWalletModal.privateKey); }}
                                             style={{
                                                 padding: '0.5rem 1rem',
                                                 background: 'rgba(251, 191, 36, 0.2)',
@@ -10810,7 +11336,7 @@ function App() {
                                     <div style={{background: 'rgba(16, 185, 129, 0.1)', padding: '1.25rem', borderRadius: '0.75rem', border: '1px solid rgba(16, 185, 129, 0.3)'}}>
                                         <h3 style={{color: '#34d399', margin: '0 0 0.75rem 0', fontSize: '1.1rem'}}>⚡ Quick Action Buttons</h3>
                                         <ul style={{color: '#cbd5e1', margin: 0, paddingLeft: '1.25rem', lineHeight: 1.8}}>
-                                            <li><strong>🚰 Get 5 ETH:</strong> Request free test ETH from the faucet to experiment with</li>
+                                            <li><strong>💰 Test ETH:</strong> Ask your instructor for test ETH. Only the instructor can issue funds.</li>
                                             <li><strong>📤 Send:</strong> Jump to the Send ETH section to transfer funds</li>
                                             <li><strong>📥 Stake:</strong> Jump to the Staking section to participate in staking</li>
                                         </ul>
@@ -10940,9 +11466,28 @@ function App() {
                             provider={provider}
                             posAddress={posAddress}
                             rpcUrl={rpcUrl}
+                            wallet={wallet}
+                            onOpenTerminal={() => openLabTerminal(rpcUrl)}
                         />
                     )}
                 </div>
+            )}
+
+            {/* BEACON CHAIN LAB */}
+            {view === 'beacon-lab' && (
+                <ErrorBoundary>
+                    <BeaconChainLabView provider={provider} wallet={wallet} rpcUrl={rpcUrl} />
+                </ErrorBoundary>
+            )}
+            {view === 'contract-builder-lab' && (
+                <ErrorBoundary>
+                    <ContractBuilderLabView provider={provider} wallet={wallet} rpcUrl={rpcUrl} />
+                </ErrorBoundary>
+            )}
+            {view === 'tokenization-lab' && (
+                <ErrorBoundary>
+                    <TokenizationLabView provider={provider} wallet={wallet} rpcUrl={rpcUrl} />
+                </ErrorBoundary>
             )}
         </main>
     </div>

@@ -31,10 +31,21 @@ services:
     ports:
       - "8545:8545"    # Blockchain RPC - share this with students
       - "5173:5173"    # Frontend Web UI
+      - "3001:3001"    # Chain City indexer API
+      - "3002:3002"    # Lab Terminal (PTY WebSocket)
+      - "3003:3003"    # Lab Terminal fallback
+      - "3004:3004"    # Lab Terminal fallback
     environment:
       - MODE=instructor
       - RPC_PORT=8545
       - FRONTEND_PORT=5173
+      # INSTRUCTOR_IP: comma-separated IPs for ?mode=instructor. Use * to allow all (instructor laptop only).
+      # Uncomment below if ?mode=instructor is blocked (Docker gateway IP varies by setup):
+      - INSTRUCTOR_IP=*
+      # Or add your specific IP: - INSTRUCTOR_IP=127.0.0.1,::1,192.168.1.100
+      - TERMINAL_PORTS=3002,3003,3004
+      - TERMINAL_CWD=/app
+      # - DEPLOY_BEACON_LAB=1  # Uncomment to deploy Beacon Chain Lab at startup
     volumes:
       # Persist blockchain data between restarts
       - blockchain-data:/app/.hardhat

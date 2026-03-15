@@ -33,6 +33,9 @@ A comprehensive educational platform that teaches Ethereum, smart contracts, and
 - `npm run chain` — Start Hardhat blockchain node (port 8545)
 - `npm run deploy` — Deploy smart contracts to local node
 - `npm run web` — Start Vite dev server (port 5173)
+- `npm run lab-api` — Lab API for session, fund requests, wallet tracking (port 3000)
+- `npm run reset` — Full classroom reset (clear blockchain + indexer)
+- `npm run reset:docker` — Docker: remove volumes and start fresh
 - `npm run build` — Compile contracts, copy artifacts, build frontend
 - `npm run test` — Run Hardhat tests
 - `npm run lab1` … `lab5` — CLI forensics labs
@@ -124,6 +127,9 @@ Or edit `docker-compose.student.yml` and set the `INSTRUCTOR_RPC_URL` environmen
 # Start instructor node
 docker-compose up --build
 
+# Full reset for new class (removes blockchain data)
+npm run reset:docker
+
 # Start in background
 docker-compose up --build -d
 
@@ -137,6 +143,8 @@ docker-compose down
 INSTRUCTOR_RPC_URL=http://192.168.1.100:8545 docker-compose -f docker-compose.student.yml up --build
 ```
 
+**Instructor mode by IP:** Only the instructor's IP can use `?mode=instructor`. Add your network IP to `INSTRUCTOR_IP` in docker-compose if you access via `http://YOUR-IP:5173?mode=instructor`.
+
 ### Manual Deployment (No Docker)
 
 If you prefer to run everything locally without Docker:
@@ -148,11 +156,14 @@ npm run chain
 # Terminal 2: Deploy contracts (after chain is ready)
 npm run deploy
 
-# Terminal 3: Start frontend
+# Terminal 3: Start Lab API (for session, fund requests)
+npm run lab-api
+
+# Terminal 4: Start frontend
 npm run web
 ```
 
-Or use **`.\start-lab.ps1 -Mode instructor`** (Windows) to start everything automatically.
+Or use **`.\start-lab.ps1 -Mode instructor`** (Windows) to start everything automatically, including the Lab API.
 
 ### Getting the Contract Address
 
@@ -183,15 +194,24 @@ npm install
 # Start instructor mode
 .\start-lab.ps1 -Mode instructor
 
+# Full reset + start fresh (for new class)
+.\start-lab.ps1 -Mode instructor -Reset
+
+# Reset only (then run instructor manually)
+.\start-lab.ps1 -Mode reset
+
 # For remote students (via internet)
 .\start-lab.ps1 -Mode instructor -UseNgrok
 ```
 
 This automatically:
 - ✅ Starts the blockchain node
+- ✅ Starts Lab API (session, fund requests) on port 3000
 - ✅ Deploys smart contracts
 - ✅ Opens instructor dashboard at `http://localhost:5173/?mode=instructor`
 - ✅ Displays contract address and connection info
+
+**Instructor mode restriction:** Only the instructor's IP can access `?mode=instructor`. Students visiting that URL from their own machines are redirected. Set `INSTRUCTOR_IP` in docker-compose or start-lab sets it automatically for local use.
 
 ### Share Connection Information
 - **Contract Address**: Shown in terminal output (starts with 0x...)
@@ -238,8 +258,8 @@ Then open `http://localhost:5173` and enter the contract address when prompted.
 - **Live Network Control**: Simulate block production and attestation
 
 ### Student Experience
-1. **Generate or Import Wallet**: Create a new wallet or import with private key
-2. **Get Test ETH**: Ask your instructor for test ETH (only the instructor can issue funds)
+1. **Create Wallet**: New students (by IP) must create a wallet first — no auto-assigned address. Click **Create or import wallet** in the Live tab.
+2. **Request Funds**: Click **Request funds** to notify the instructor. The instructor sees pending requests in the dashboard and can fund with one click.
 3. **Stake ETH**: Lock funds to become a validator
 4. **Earn Rewards**: Participate in consensus and earn staking rewards
 5. **Use CLI Labs**: Run forensics analysis and build smart contracts

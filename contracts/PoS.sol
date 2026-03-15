@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.9;
 
+interface IGameControllerEpoch {
+    function advanceEpochFromPoS() external;
+}
+
 /**
  * @title PoSSimulator - Enhanced Educational Proof-of-Stake Simulator
  * @notice Teaches PoS concepts including staking, slashing, unbonding, attestations, and validator selection
@@ -30,16 +34,33 @@ contract PoSSimulator {
     
     // --- Attestation State ---
     uint256 public currentEpoch;
+    uint256 public currentSlot; // 1-8 within epoch (Ethereum: 32 slots per epoch)
     uint256 public lastEpochTime;
+    uint256 public lastProposedBlockNumber; // Block that validators attest to
     mapping(address => uint256) public lastAttestationEpoch;
+    mapping(address => uint256) public lastAttestationBlock; // Block validator attested to
     mapping(address => uint256) public missedAttestations;
+    
+    // --- Role Assignment (instructor assigns scenario roles) ---
+    mapping(address => string) public roleAssignment;
+    
+    // --- Role completion: participant registers their deployed contract ---
+    mapping(address => address) public roleContractAddress;
+    
+    // --- Auto-assign: instructor sets role pool, contract assigns on first stake/chat ---
+    string[] public rolePool;
+    uint256 public rolePoolIndex;
+    
+    // --- Chain City integration: when PoS advances epoch, notify GameController ---
+    address public gameController;
     
     // ==================== CONSTANTS ====================
     
-    uint256 public constant MIN_STAKE = 1 ether;
+    uint256 public constant MIN_STAKE = 32 ether; // Ethereum mainnet standard
     uint256 public constant UNBONDING_PERIOD = 60; // 60 seconds for demo (real: ~27 hours)
     uint256 public constant MIN_STAKE_DURATION = 30; // 30 seconds minimum stake time
     uint256 public constant EPOCH_DURATION = 30; // 30 seconds per epoch
+    uint256 public constant SLOTS_PER_EPOCH = 8; // Demo: 8 slots/epoch (real Ethereum: 32)
     uint256 public constant SLASH_PENALTY_PERCENT = 5; // 5% slash per offense
     uint256 public constant ATTESTATION_PENALTY_PERCENT = 1; // 0.1% = 1/1000 for missed attestation
     uint256 public constant BLOCK_REWARD = 0.01 ether; // Reward for proposing a block
@@ -69,6 +90,10 @@ contract PoSSimulator {
     
     // --- Chat Event ---
     event NewMessage(address indexed sender, string message, uint256 timestamp);
+    
+    // --- Role Assignment ---
+    event RoleAssigned(address indexed who, string role);
+    event RoleContractRegistered(address indexed who, address contractAddr);
 
     // ==================== MODIFIERS ====================
     
@@ -88,13 +113,65 @@ contract PoSSimulator {
         instructor = msg.sender;
         lastEpochTime = block.timestamp;
         currentEpoch = 1;
+        currentSlot = 1;
     }
 
     // ==================== CHAT FUNCTION ====================
     
     function sendMessage(string memory _msg) public {
-        // Sending a message costs Gas, preventing spam!
+        // Auto-assign role from pool if none assigned (join-by-chat)
+        if (bytes(roleAssignment[msg.sender]).length == 0 && rolePoolIndex < rolePool.length) {
+            roleAssignment[msg.sender] = rolePool[rolePoolIndex];
+            emit RoleAssigned(msg.sender, rolePool[rolePoolIndex]);
+            rolePoolIndex++;
+        }
         emit NewMessage(msg.sender, _msg, block.timestamp);
+    }
+    
+    /**
+     * @notice Assign scenario role to a participant (instructor only)
+     * @param who Address to assign
+     * @param role Role string (e.g. "Car Seller", "Car Buyer", "Mechanic", "Victim", "Attacker", "Investigator")
+     */
+    function setRole(address who, string calldata role) public onlyInstructor {
+        roleAssignment[who] = role;
+        emit RoleAssigned(who, role);
+    }
+
+    /**
+     * @notice Assign roles to multiple participants in one transaction (avoids nonce issues)
+     */
+    function setRolesBatch(address[] calldata who, string[] calldata roles) external onlyInstructor {
+        require(who.length == roles.length, "Length mismatch");
+        for (uint256 i = 0; i < who.length; i++) {
+            roleAssignment[who[i]] = roles[i];
+            emit RoleAssigned(who[i], roles[i]);
+        }
+    }
+
+    /**
+     * @notice Set role pool for auto-assignment. When participants stake or chat, they get next role from pool.
+     */
+    function setGameController(address _gc) external onlyInstructor {
+        gameController = _gc;
+    }
+
+    function setRolePool(string[] calldata roles) external onlyInstructor {
+        delete rolePool;
+        for (uint256 i = 0; i < roles.length; i++) {
+            rolePool.push(roles[i]);
+        }
+        rolePoolIndex = 0;
+    }
+
+    /**
+     * @notice Participant registers their deployed contract to complete their role
+     */
+    function registerRoleContract(address _contract) external {
+        require(_contract != address(0), "Invalid address");
+        require(bytes(roleAssignment[msg.sender]).length > 0, "No role assigned");
+        roleContractAddress[msg.sender] = _contract;
+        emit RoleContractRegistered(msg.sender, _contract);
     }
 
     // ==================== STAKING FUNCTIONS ====================
@@ -104,7 +181,7 @@ contract PoSSimulator {
      * @dev Minimum stake is 1 ETH, can only stake once (no topping up)
      */
     function stake() public payable {
-        require(msg.value >= MIN_STAKE, "Minimum stake is 1 ETH");
+        require(msg.value >= MIN_STAKE, "Minimum stake is 32 ETH");
         require(stakes[msg.sender] == 0, "Already a validator - withdraw first");
 
         stakes[msg.sender] = msg.value;
@@ -114,6 +191,13 @@ contract PoSSimulator {
         // Add to validator list
         validatorList.push(msg.sender);
         validatorIndex[msg.sender] = validatorList.length; // 1-indexed
+        
+        // Auto-assign role from pool if none assigned
+        if (bytes(roleAssignment[msg.sender]).length == 0 && rolePoolIndex < rolePool.length) {
+            roleAssignment[msg.sender] = rolePool[rolePoolIndex];
+            emit RoleAssigned(msg.sender, rolePool[rolePoolIndex]);
+            rolePoolIndex++;
+        }
         
         emit Staked(msg.sender, msg.value);
     }
@@ -261,6 +345,7 @@ contract PoSSimulator {
     
     /**
      * @notice Advance to next epoch (instructor or automatic)
+     * When gameController is set, notifies it so Chain City epochs stay in sync (unified simulator).
      */
     function advanceEpoch() public {
         require(
@@ -271,6 +356,11 @@ contract PoSSimulator {
         currentEpoch++;
         lastEpochTime = block.timestamp;
         emit EpochAdvanced(currentEpoch, block.timestamp);
+        
+        // Notify Chain City GameController (same simulator)
+        if (gameController != address(0)) {
+            try IGameControllerEpoch(gameController).advanceEpochFromPoS() {} catch {}
+        }
     }
     
     /**
@@ -284,9 +374,13 @@ contract PoSSimulator {
     }
     
     /**
-     * @notice Validators must attest each epoch to avoid penalties
+     * @notice Validators attest to the proposed block (block must be proposed first)
+     * @param blockNumber Block to attest to (must equal lastProposedBlockNumber)
      */
-    function attest() public onlyValidator {
+    function attest(uint256 blockNumber) public onlyValidator {
+        require(lastProposedBlockNumber > 0, "No block proposed yet - wait for next block");
+        require(blockNumber == lastProposedBlockNumber, "Must attest to the current proposed block");
+        
         // Auto-advance epoch if needed
         if (block.timestamp >= lastEpochTime + EPOCH_DURATION) {
             advanceEpoch();
@@ -298,7 +392,15 @@ contract PoSSimulator {
         );
         
         lastAttestationEpoch[msg.sender] = currentEpoch;
+        lastAttestationBlock[msg.sender] = blockNumber;
         emit Attestation(msg.sender, currentEpoch);
+    }
+    
+    /**
+     * @notice Convenience: attest to the latest proposed block
+     */
+    function attest() public onlyValidator {
+        attest(lastProposedBlockNumber);
     }
     
     /**
@@ -338,40 +440,68 @@ contract PoSSimulator {
     // ==================== VALIDATOR SELECTION (BLOCK PROPOSAL) ====================
     
     /**
-     * @notice Simulate a block proposal with weighted random selection
-     * @dev Uses stake weight to determine probability of selection
-     * @return Selected validator address
+     * @notice Propose a block for the current slot (instructor triggers)
+     * @dev Staker-first: if validators exist, one is selected (stake-weighted) and receives BLOCK_REWARD.
+     *      If no validators, instructor proposes (fallback) with no stake reward.
+     * @return Selected proposer address (validator or instructor)
      */
-    function simulateBlockProposal() public onlyInstructor returns (address) {
-        require(totalStaked > 0, "No validators staking");
-        require(validatorList.length > 0, "No validators in list");
+    function proposeBlock() public onlyInstructor returns (address) {
+        address proposer;
+        uint256 reward;
         
-        // Generate pseudo-random number based on block data
-        uint256 random = uint256(keccak256(abi.encodePacked(
-            block.timestamp,
-            block.prevrandao,
-            totalStaked,
-            validatorList.length
-        ))) % totalStaked;
-        
-        // Weighted selection: iterate through validators
-        uint256 cumulative = 0;
-        address selectedValidator = validatorList[0]; // Default to first
-        
-        for (uint256 i = 0; i < validatorList.length; i++) {
-            cumulative += stakes[validatorList[i]];
-            if (random < cumulative) {
-                selectedValidator = validatorList[i];
-                break;
+        if (validatorList.length > 0 && totalStaked > 0) {
+            // Staker-first: select proposer from validators (stake-weighted)
+            uint256 random = uint256(keccak256(abi.encodePacked(
+                block.timestamp,
+                block.prevrandao,
+                totalStaked,
+                validatorList.length
+            ))) % totalStaked;
+            
+            uint256 cumulative = 0;
+            proposer = validatorList[0];
+            for (uint256 i = 0; i < validatorList.length; i++) {
+                cumulative += stakes[validatorList[i]];
+                if (random < cumulative) {
+                    proposer = validatorList[i];
+                    break;
+                }
             }
+            
+            // Credit BLOCK_REWARD to proposer (mint into stake)
+            stakes[proposer] += BLOCK_REWARD;
+            totalStaked += BLOCK_REWARD;
+            blocksProposed[proposer]++;
+            reward = BLOCK_REWARD;
+        } else {
+            // Instructor fallback: no validators, instructor proposes
+            proposer = instructor;
+            reward = 0;
         }
         
-        // Record the proposal
-        blocksProposed[selectedValidator]++;
+        lastProposedBlockNumber = block.number;
         
-        emit BlockProposed(selectedValidator, block.number, BLOCK_REWARD);
+        // Advance slot (8 slots per epoch for demo; real Ethereum: 32)
+        if (currentSlot >= SLOTS_PER_EPOCH) {
+            currentSlot = 1;
+            if (block.timestamp >= lastEpochTime + EPOCH_DURATION) {
+                currentEpoch++;
+                lastEpochTime = block.timestamp;
+                emit EpochAdvanced(currentEpoch, block.timestamp);
+            }
+        } else {
+            currentSlot++;
+        }
         
-        return selectedValidator;
+        emit BlockProposed(proposer, block.number, reward);
+        return proposer;
+    }
+    
+    /**
+     * @notice Legacy alias for proposeBlock (backward compatibility)
+     */
+    function simulateBlockProposal() public onlyInstructor returns (address) {
+        return proposeBlock();
     }
     
     /**

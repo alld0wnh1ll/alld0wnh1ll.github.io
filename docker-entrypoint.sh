@@ -31,6 +31,12 @@ cleanup() {
     if [ ! -z "$HARDHAT_PID" ]; then
         kill $HARDHAT_PID 2>/dev/null || true
     fi
+    if [ ! -z "$INDEXER_PID" ]; then
+        kill $INDEXER_PID 2>/dev/null || true
+    fi
+    if [ ! -z "$TERMINAL_PID" ]; then
+        kill $TERMINAL_PID 2>/dev/null || true
+    fi
     if [ ! -z "$FRONTEND_PID" ]; then
         kill $FRONTEND_PID 2>/dev/null || true
     fi
@@ -38,7 +44,6 @@ cleanup() {
     echo -e "${GREEN}✓ Services stopped${NC}"
     exit 0
 }
-
 trap cleanup SIGTERM SIGINT
 
 # ============================================
@@ -78,9 +83,9 @@ if [ "$MODE" = "instructor" ]; then
     # Brief pause to ensure node is fully ready for deployments
     sleep 2
     
-    # Deploy contracts (must succeed or container exits)
+    # Deploy PoS contracts (must succeed or container exits)
     echo ""
-    echo -e "${BLUE}📜 Deploying smart contracts...${NC}"
+    echo -e "${BLUE}📜 Deploying PoS Simulator...${NC}"
     if ! npx hardhat run scripts/deploy.js --network localhost; then
         echo ""
         echo -e "${RED}✗ Contract deployment failed!${NC}"
@@ -89,6 +94,54 @@ if [ "$MODE" = "instructor" ]; then
         echo "  2. docker-compose up --build"
         exit 1
     fi
+    
+    # Deploy Chain City (game contracts)
+    echo ""
+    echo -e "${BLUE}🎮 Deploying Chain City (game contracts)...${NC}"
+    if npx hardhat run scripts/deploy-game.js --network localhost; then
+        echo -e "   ${GREEN}✓ Chain City deployed${NC}"
+        if [ -f "/app/frontend/public/game-config.json" ]; then
+            cp /app/frontend/public/game-config.json /app/frontend/dist/game-config.json
+            echo -e "   ${GREEN}✓ game-config.json copied to frontend${NC}"
+        fi
+    else
+        echo -e "   ${YELLOW}⚠ Chain City deployment failed (game features may not work)${NC}"
+    fi
+    
+    # Deploy Beacon Chain Lab (optional, set DEPLOY_BEACON_LAB=1 to enable)
+    if [ "${DEPLOY_BEACON_LAB}" = "1" ]; then
+        echo ""
+        echo -e "${BLUE}⛓ Deploying Beacon Chain Lab...${NC}"
+        if npx hardhat run scripts/deploy-beacon-lab.js --network localhost; then
+            echo -e "   ${GREEN}✓ Beacon Chain Lab deployed${NC}"
+            if [ -f "/app/frontend/public/beacon-lab-config.json" ]; then
+                cp /app/frontend/public/beacon-lab-config.json /app/frontend/dist/beacon-lab-config.json
+                echo -e "   ${GREEN}✓ beacon-lab-config.json copied to frontend${NC}"
+            fi
+        else
+            echo -e "   ${YELLOW}⚠ Beacon Chain Lab deployment failed${NC}"
+        fi
+    fi
+    
+    # Start Chain City indexer in background
+    echo ""
+    echo -e "${BLUE}📊 Starting Chain City indexer (port 3001)...${NC}"
+    if [ -f "/app/frontend/public/game-config.json" ] || [ -f "/app/frontend/dist/game-config.json" ]; then
+        RPC_URL="http://localhost:$RPC_PORT" node indexer/index.js &
+        INDEXER_PID=$!
+        sleep 2
+        echo -e "   ${GREEN}✓ Indexer running${NC}"
+    else
+        echo -e "   ${YELLOW}⚠ Skipping indexer (no game-config.json)${NC}"
+    fi
+
+    # Start Lab Terminal (PTY) in background (listens on TERMINAL_PORTS or 3002)
+    echo ""
+    echo -e "${BLUE}🖥️  Starting Lab Terminal (ports 3002, 3003, 3004)...${NC}"
+    node server/terminal-server.js &
+    TERMINAL_PID=$!
+    sleep 1
+    echo -e "   ${GREEN}✓ Lab Terminal running${NC}"
     
     # Read and export contract address
     if [ -f "CONTRACT_ADDRESS.txt" ]; then
@@ -101,11 +154,11 @@ if [ "$MODE" = "instructor" ]; then
         # Get container/host IP for external access hints
         CONTAINER_IP=$(hostname -i 2>/dev/null || echo "localhost")
         
-        # Create config JSON
+        # Create config JSON (use /rpc-proxy for same-origin, avoids CORS in Docker)
         cat > /app/frontend/dist/api/config.json << EOF
 {
   "contractAddress": "$CONTRACT_ADDRESS",
-  "rpcUrl": "http://localhost:$RPC_PORT",
+  "rpcUrl": "/rpc-proxy",
   "mode": "instructor",
   "startTime": "$(date -Iseconds)"
 }
@@ -117,10 +170,10 @@ EOF
         echo -e "   ${YELLOW}⚠ Warning: Could not find contract address file${NC}"
     fi
     
-    # Start frontend server
+    # Start frontend server (with Lab API for session/fund-requests)
     echo ""
-    echo -e "${BLUE}🌐 Starting frontend server...${NC}"
-    serve -s /app/frontend/dist -l $FRONTEND_PORT &
+    echo -e "${BLUE}🌐 Starting frontend server (with Lab API)...${NC}"
+    FRONTEND_PORT=$FRONTEND_PORT node /app/server/frontend-server.js &
     FRONTEND_PID=$!
     
     # Wait a moment for serve to start
@@ -151,6 +204,7 @@ EOF
     echo "║       - Frontend: http://<YOUR-IP>:$FRONTEND_PORT                       ║"
     echo "║       - RPC URL:  http://<YOUR-IP>:$RPC_PORT                        ║"
     echo "║       - Contract: $CONTRACT_ADDRESS            ║"
+    echo "║    3. Chain City: Live view -> Chain City button               ║"
     echo "║                                                                ║"
     echo "║  📄 Auto-config endpoints:                                     ║"
     echo "║    http://localhost:$FRONTEND_PORT/contract-address.txt             ║"
@@ -184,6 +238,14 @@ elif [ "$MODE" = "student" ]; then
     echo "   - Frontend will run on port $FRONTEND_PORT"
     echo ""
     
+    # Start Lab Terminal (PTY) so remote students can use the terminal from their browser
+    echo -e "${BLUE}🖥️  Starting Lab Terminal (ports 3002, 3003, 3004)...${NC}"
+    TERMINAL_PORTS="${TERMINAL_PORTS:-3002,3003,3004}" TERMINAL_CWD=/app node server/terminal-server.js &
+    TERMINAL_PID=$!
+    sleep 1
+    echo -e "   ${GREEN}✓ Lab Terminal running (students can use terminal from browser)${NC}"
+    echo ""
+    
     # Create config for student to connect to instructor
     mkdir -p /app/frontend/dist/api
     cat > /app/frontend/dist/api/config.json << EOF
@@ -210,10 +272,11 @@ EOF
     echo "╠════════════════════════════════════════════════════════════╣"
     echo "║                                                            ║"
     echo "║  Frontend:        http://localhost:$FRONTEND_PORT                  ║"
+    echo "║  Lab Terminal:    ports 3002, 3003, 3004 (browser shell)   ║"
     echo "║  Instructor RPC:  $INSTRUCTOR_RPC_URL"
     echo "║                                                            ║"
     echo "║  Open browser to: http://localhost:$FRONTEND_PORT                  ║"
-    echo "║  Then enter the instructor's contract address              ║"
+    echo "║  Lab Terminal: use --network instructor for Hardhat console ║"
     echo "║                                                            ║"
     echo "╚════════════════════════════════════════════════════════════╝"
     echo ""

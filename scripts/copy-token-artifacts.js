@@ -13,7 +13,11 @@ if (!fs.existsSync(destDir)) {
 
 const tokens = [
   { name: 'SimpleFT', artifact: 'SimpleFT.sol/SimpleFT.json' },
-  { name: 'SimpleNFT', artifact: 'SimpleNFT.sol/SimpleNFT.json' }
+  { name: 'SimpleNFT', artifact: 'SimpleNFT.sol/SimpleNFT.json' },
+  { name: 'LabNFT', artifact: 'LabNFT.sol/LabNFT.json' },
+  { name: 'LabNFTSale', artifact: 'LabNFTSale.sol/LabNFTSale.json' },
+  { name: 'SimpleStorage', artifact: 'SimpleStorage.sol/SimpleStorage.json' },
+  { name: 'CarSale', artifact: 'student/CarSale_000001.sol/CarSale.json' }
 ];
 
 for (const { name, artifact } of tokens) {

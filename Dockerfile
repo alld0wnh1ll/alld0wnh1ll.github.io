@@ -42,17 +42,19 @@ LABEL description="Interactive blockchain training environment"
 
 WORKDIR /app
 
-# Install curl for health checks, bash for scripts
-RUN apk add --no-cache curl bash
+# Install curl for health checks, bash for scripts, build deps for node-pty
+RUN apk add --no-cache curl bash python3 make g++
 
 # Copy blockchain dependencies (needed for instructor mode)
 # Use --ignore-scripts to skip postinstall (frontend is built separately)
 COPY package*.json ./
-RUN npm ci --ignore-scripts
+RUN npm ci --ignore-scripts && npm rebuild node-pty
 
 # Copy blockchain contracts and scripts
 COPY contracts/ ./contracts/
 COPY scripts/ ./scripts/
+COPY indexer/ ./indexer/
+COPY server/ ./server/
 COPY hardhat.config.js ./
 
 # Copy CLI labs with pre-installed dependencies
@@ -65,7 +67,7 @@ COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 RUN npm install -g serve
 
 # Create directories for runtime data
-RUN mkdir -p /app/data /app/contracts/student
+RUN mkdir -p /app/data /app/contracts/student /app/frontend/public
 
 # Copy startup scripts and configs
 COPY docker-entrypoint.sh /usr/local/bin/
@@ -79,8 +81,8 @@ ENV FRONTEND_PORT=5173
 ENV CONTRACT_ADDRESS=""
 ENV INSTRUCTOR_RPC_URL=""
 
-# Expose ports
-EXPOSE 8545 5173
+# Expose ports (8545=RPC, 5173=frontend, 3001=indexer, 3002-3004=Lab Terminal)
+EXPOSE 8545 5173 3001 3002 3003 3004
 
 # Health check - checks frontend availability
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

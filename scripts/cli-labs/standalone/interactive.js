@@ -49,6 +49,8 @@ const POS_ABI = [
   'function requestWithdrawal()',
   'function withdraw()',
   'function attest()',
+  'function attest(uint256 blockNumber)',
+  'function lastProposedBlockNumber() view returns (uint256)',
   'function sendMessage(string)',
   'event Staked(address indexed validator, uint256 amount)',
   'event NewMessage(address indexed sender, string message, uint256 timestamp)',
@@ -558,7 +560,7 @@ async function sendChatMessage() {
 }
 
 async function attestEpoch() {
-  console.log(c('yellow', '\n✅ Attest to Epoch\n'));
+  console.log(c('yellow', '\n✅ Attest to Block\n'));
   
   const readContract = new ethers.Contract(CONTRACT_ADDRESS, POS_ABI, provider);
   const myStake = await readContract.stakes(selectedAccount.address);
@@ -568,8 +570,14 @@ async function attestEpoch() {
     return;
   }
   
-  console.log('⏳ Attesting...');
-  const tx = await contract.attest();
+  const lastProposedBlock = await readContract.lastProposedBlockNumber();
+  if (lastProposedBlock === 0n) {
+    console.log(c('red', 'No block proposed yet. Wait for the next block.'));
+    return;
+  }
+  
+  console.log(`⏳ Attesting to Block #${lastProposedBlock}...`);
+  const tx = await contract.attest(lastProposedBlock);
   console.log(`Transaction: ${tx.hash}`);
   await tx.wait();
   console.log(c('green', '✓ Attestation recorded!'));

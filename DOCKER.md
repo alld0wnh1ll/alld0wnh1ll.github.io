@@ -98,6 +98,19 @@ Students can either:
 - Open `http://<your-ip>:5173` directly in their browser
 - Run their own student container connecting to your RPC
 
+### Lab Terminal (Remote Students)
+
+The **Lab Terminal** in the web UI gives students a browser-based shell. Two setups:
+
+| Student setup | Terminal runs on | RPC / Hardhat |
+|---------------|------------------|---------------|
+| Opens instructor's URL (`http://<instructor-ip>:5173`) | Instructor's container | `npm run console` or `npx hardhat console --network localhost` |
+| Runs own student container (`localhost:5173`) | Student's container | `npx hardhat console --network instructor` (RPC_URL auto-injected) |
+
+**For students using the instructor's URL:** Ensure your firewall allows inbound TCP on ports **3002, 3003, 3004** (Lab Terminal WebSocket). Students connect to `ws://<your-ip>:3002`.
+
+**For students running their own container:** The student container includes the Lab Terminal. RPC_URL is injected from the Connection Setup (instructor's RPC). Use `--network instructor` for Hardhat console.
+
 ## Configuration Options
 
 ### Environment Variables
@@ -203,19 +216,19 @@ For labs involving multiple roles (Admin, Seller, Buyer), each participant needs
 **Admin Terminal:**
 ```bash
 docker-compose exec ethereum-trainer bash
-npx hardhat console --network localhost
+npm run console
 ```
 
 **Seller Terminal:**
 ```bash
 docker-compose exec ethereum-trainer bash
-npx hardhat console --network localhost
+npm run console
 ```
 
 **Buyer Terminal:**
 ```bash
 docker-compose exec ethereum-trainer bash
-npx hardhat console --network localhost
+npm run console
 ```
 
 See `docs/HOUSE_SALE_LAB.md` for complete instructions.
@@ -232,7 +245,7 @@ node interactive.js
 # Select: 7. Contract Builder Lab → 6. Classroom Voting Demo
 
 # Or via Hardhat console
-npx hardhat console --network localhost
+npm run console
 ```
 
 Dashboard available at: `http://localhost:5173/dashboard.html`
@@ -276,6 +289,10 @@ netsh advfirewall firewall add rule name="Ethereum Trainer Frontend" dir=in acti
 sudo ufw allow 8545
 sudo ufw allow 5173
 ```
+
+### "HardhatEthersProvider.resolveName is not implemented"
+
+When running example scripts in the Hardhat console, you may see this error. **Fix:** In the web UI, click an example script to open the popup—the script includes a fix at the top. Copy the full script and paste it into the Hardhat console. Also replace placeholder addresses like `'0x...'` with the real contract address (0x + 40 hex chars) from your instructor.
 
 ### "Transaction reverted" or "execution reverted (no data present)"
 

@@ -6,15 +6,71 @@
 
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet("instructor", "student")]
+    [ValidateSet("instructor", "student", "beacon-lab", "reset")]
     [string]$Mode,
     
     [switch]$UseNgrok = $false,
+    [switch]$Reset = $false,
     
     # Student-mode parameters
     [string]$ContractAddress = "",
     [string]$RpcUrl = ""
 )
+
+# ============================================================================
+# RESET MODE - Full classroom reset (clear blockchain + indexer, then optionally start instructor)
+# ============================================================================
+function Start-ResetMode {
+    param([switch]$Quiet = $false)
+    Write-Host ""
+    Write-Host "==================================================" -ForegroundColor Cyan
+    Write-Host "   FULL CLASSROOM RESET" -ForegroundColor Cyan
+    Write-Host "==================================================" -ForegroundColor Cyan
+
+    # Try to stop any process using port 8545 (Hardhat node)
+    Write-Host ""
+    Write-Host "[1/2] Stopping blockchain node (port 8545)..." -ForegroundColor Green
+    $killed = $false
+    try {
+        $conn = Get-NetTCPConnection -LocalPort 8545 -ErrorAction SilentlyContinue
+        if ($conn) {
+            $conn | ForEach-Object {
+                $pid = $_.OwningProcess
+                if ($pid) {
+                    Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+                    Write-Host "   Stopped process $pid" -ForegroundColor Yellow
+                    $killed = $true
+                }
+            }
+        }
+        if (-not $killed) {
+            Write-Host "   No node running on 8545" -ForegroundColor Gray
+        }
+    } catch {
+        Write-Host "   Could not stop node: $_" -ForegroundColor Yellow
+        Write-Host "   Close the Hardhat window manually." -ForegroundColor Yellow
+    }
+    Start-Sleep -Seconds 2
+
+    # Run reset script
+    Write-Host ""
+    Write-Host "[2/2] Clearing blockchain data and indexer..." -ForegroundColor Green
+    npm run reset
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Reset script reported an issue." -ForegroundColor Yellow
+    }
+
+    if (-not $Quiet) {
+        Write-Host ""
+        Write-Host "==================================================" -ForegroundColor Green
+        Write-Host "RESET COMPLETE" -ForegroundColor Green
+        Write-Host "==================================================" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "Start fresh instructor mode:" -ForegroundColor Cyan
+        Write-Host "  .\start-lab.ps1 -Mode instructor" -ForegroundColor White
+        Write-Host ""
+    }
+}
 
 # ============================================================================
 # INSTRUCTOR MODE
@@ -41,10 +97,21 @@ function Start-InstructorMode {
     # Check if ngrok is available
     $hasNgrok = Get-Command ngrok -ErrorAction SilentlyContinue
 
+    # 0. Optional reset before starting
+    if ($Reset) {
+        Write-Host ""
+        Write-Host "Performing reset first..." -ForegroundColor Yellow
+        Start-ResetMode -Quiet
+        Write-Host "Continuing with instructor startup..." -ForegroundColor Green
+        Write-Host ""
+    }
+
     # 1. Start Hardhat Node in a new window
     Write-Host ""
-    Write-Host "[1/4] Starting blockchain node..." -ForegroundColor Green
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", "npm run chain"
+    Write-Host "[1/6] Starting blockchain node..." -ForegroundColor Green
+    Write-Host "  (A new window will open - KEEP IT OPEN for the lab to work)" -ForegroundColor Gray
+    $labDir = (Get-Location).Path
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$labDir'; Write-Host 'BLOCKCHAIN NODE - Keep this window open!' -ForegroundColor Cyan; npm run chain" -WorkingDirectory $labDir
 
     # Wait for node to boot
     Write-Host "Waiting for node to start..." -ForegroundColor Yellow
@@ -58,8 +125,8 @@ function Start-InstructorMode {
         try {
             $response = Invoke-WebRequest -Uri "http://localhost:8545" -Method POST `
                 -Body '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' `
-                -ContentType "application/json" -TimeoutSec 2 -ErrorAction Stop
-            if ($response.StatusCode -eq 200) {
+                -ContentType "application/json" -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
+            if ($response.StatusCode -eq 200 -and $response.Content -match '"result"') {
                 $nodeReady = $true
                 Write-Host "`nNode is ready!" -ForegroundColor Green
             }
@@ -70,23 +137,46 @@ function Start-InstructorMode {
     }
 
     if (-not $nodeReady) {
-        Write-Host "`nWARNING: Node may not be ready. Check the Hardhat window for errors." -ForegroundColor Red
+        Write-Host "`nERROR: Blockchain node did not start. Check the Hardhat window for errors." -ForegroundColor Red
+        Write-Host "  - Ensure no other process is using port 8545" -ForegroundColor Yellow
+        Write-Host "  - Try: netstat -an | findstr 8545" -ForegroundColor Yellow
         exit 1
     }
 
+    # Extra stabilization delay (node can report ready before fully accepting connections)
+    Write-Host "Stabilizing connection..." -ForegroundColor Gray
+    Start-Sleep -Seconds 3
+
     # 2. Deploy Contracts
     Write-Host ""
-    Write-Host "[2/4] Deploying smart contracts..." -ForegroundColor Green
-    $deployOutput = npm run deploy | Out-String
+    Write-Host "[2/6] Deploying smart contracts..." -ForegroundColor Green
+    $deployOutput = npm run deploy 2>&1 | Out-String
     Write-Host $deployOutput
 
-    # Extract Contract Address
+    if ($deployOutput -match "ECONNREFUSED|Cannot connect to the network") {
+        Write-Host "`nERROR: Cannot connect to blockchain. The node may have stopped or not fully started." -ForegroundColor Red
+        Write-Host "  - Keep the Hardhat window OPEN (do not close it)" -ForegroundColor Yellow
+        Write-Host "  - Wait 10 seconds and run again: .\start-lab.ps1 -Mode instructor" -ForegroundColor Yellow
+        exit 1
+    }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "`nERROR: Contract deployment failed." -ForegroundColor Red
+        exit 1
+    }
+
+    # Extract Contract Address (deploy.js prints "✅ PoS Simulator deployed to: 0x...")
     $posAddr = ""
-    if ($deployOutput -match "PoS Simulator deployed to (0x[a-fA-F0-9]{40})") {
+    if ($deployOutput -match "deployed to:?\s+(0x[a-fA-F0-9]{40})") {
         $posAddr = $matches[1]
-        
-        # Save to CONTRACT_ADDRESS.txt
-        $posAddr | Out-File -FilePath "CONTRACT_ADDRESS.txt" -Force
+    }
+    # Fallback: read from CONTRACT_ADDRESS.txt (deploy.js always writes it)
+    if (-not $posAddr -and (Test-Path "CONTRACT_ADDRESS.txt")) {
+        $posAddr = (Get-Content "CONTRACT_ADDRESS.txt" -First 1).Trim()
+    }
+    
+    if ($posAddr -and $posAddr.Length -eq 42) {
+        # Save to CONTRACT_ADDRESS.txt (UTF-8, no BOM)
+        [System.IO.File]::WriteAllText("CONTRACT_ADDRESS.txt", "$posAddr`n")
         
         # Save to deployment.json
         @{
@@ -94,6 +184,10 @@ function Start-InstructorMode {
             timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
             network = "localhost:8545"
         } | ConvertTo-Json | Out-File -FilePath "deployment.json" -Force
+        
+        # Save to frontend config so both instructor and student auto-sync
+        $configJson = "{`"contractAddress`":`"$posAddr`",`"deployedAt`":`"$(Get-Date -Format o)`"}"
+        [System.IO.File]::WriteAllText("frontend\public\contract-config.json", $configJson)
         
         # Display prominently
         Write-Host ""
@@ -103,7 +197,7 @@ function Start-InstructorMode {
         Write-Host "█                                                            █" -ForegroundColor Magenta  
         Write-Host "█  $posAddr  █" -ForegroundColor White -BackgroundColor DarkMagenta
         Write-Host "█                                                            █" -ForegroundColor Magenta
-        Write-Host "█  Saved to: CONTRACT_ADDRESS.txt & deployment.json         █" -ForegroundColor Cyan
+        Write-Host "█  Saved to: CONTRACT_ADDRESS.txt & contract-config.json    █" -ForegroundColor Cyan
         Write-Host "█                                                            █" -ForegroundColor Magenta
         Write-Host "██████████████████████████████████████████████████████████████" -ForegroundColor Magenta
     } 
@@ -111,33 +205,89 @@ function Start-InstructorMode {
         Write-Host "Could not extract contract address. Check deployment output above." -ForegroundColor Red
     }
 
-    # 3. Start ngrok if requested
+    # 3. Deploy Chain City (game contracts)
+    Write-Host ""
+    Write-Host "[3/7] Deploying Chain City (game contracts)..." -ForegroundColor Green
+    npm run deploy:game
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Chain City deployment failed. Game features may not work. Continuing..." -ForegroundColor Yellow
+    } else {
+        Write-Host "Chain City deployed. game-config.json created." -ForegroundColor Green
+    }
+
+    # 3b. Deploy Beacon Chain Lab
+    Write-Host ""
+    Write-Host "[3b/7] Deploying Beacon Chain Lab..." -ForegroundColor Green
+    npm run deploy:beacon-lab
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Beacon Chain Lab deployment failed. Continuing..." -ForegroundColor Yellow
+    } else {
+        Write-Host "Beacon Chain Lab deployed. beacon-lab-config.json created." -ForegroundColor Green
+    }
+
+    # 4. Start Lab API (session, fund requests, wallet tracking) in a new window
+    Write-Host ""
+    Write-Host "[4/8] Starting Lab API (port 3000)..." -ForegroundColor Green
+    $labApiEnv = "INSTRUCTOR_IP=127.0.0.1,::1,$ipAddr"
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", `
+        "`$env:INSTRUCTOR_IP='127.0.0.1,::1,$ipAddr'; Write-Host 'LAB API' -ForegroundColor Cyan; Write-Host 'Session, fund requests: http://localhost:3000' -ForegroundColor Gray; Set-Location '$labDir'; npm run lab-api" -WorkingDirectory $labDir
+    Start-Sleep -Seconds 2
+
+    # 5. Start Lab Terminal (PTY) in a new window
+    Write-Host ""
+    Write-Host "[5/8] Starting Lab Terminal (port 3002)..." -ForegroundColor Green
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", `
+        "Write-Host 'LAB TERMINAL (PTY)' -ForegroundColor Cyan; Write-Host 'WebSocket: ws://localhost:3002' -ForegroundColor Gray; Set-Location '$labDir'; npm run terminal" -WorkingDirectory $labDir
+    Start-Sleep -Seconds 2
+
+    # 6. Start Chain City indexer in a new window
+    Write-Host ""
+    Write-Host "[6/8] Starting Chain City indexer (port 3001)..." -ForegroundColor Green
+    if (-not (Test-Path "frontend\public\game-config.json")) {
+        Write-Host "WARNING: game-config.json not found. Indexer requires deploy:game. Continuing anyway..." -ForegroundColor Yellow
+    }
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", `
+        "Write-Host 'CHAIN CITY INDEXER' -ForegroundColor Cyan; Write-Host 'Listening on http://localhost:3001' -ForegroundColor Gray; Set-Location '$labDir'; npm run indexer" -WorkingDirectory $labDir
+    Start-Sleep -Seconds 3
+    # Verify indexer is reachable
+    $indexerReady = $false
+    try {
+        $health = Invoke-WebRequest -Uri "http://localhost:3001/api/health" -TimeoutSec 2 -ErrorAction Stop
+        if ($health.StatusCode -eq 200) {
+            $indexerReady = $true
+            Write-Host "Indexer is ready." -ForegroundColor Green
+        }
+    } catch {
+        Write-Host "Indexer may not be ready yet. If you see 'Indexer not reachable' in the app, open a new terminal and run: npm run indexer" -ForegroundColor Yellow
+    }
+
+    # 7. Start ngrok if requested
     $rpcUrl = "http://$($ipAddr):8545"
     if ($UseNgrok) {
         if ($hasNgrok) {
             Write-Host ""
-            Write-Host "[3/4] Starting ngrok for remote RPC access..." -ForegroundColor Green
+            Write-Host "[6/6] Starting ngrok for remote RPC access..." -ForegroundColor Green
             Start-Process powershell -ArgumentList "-NoExit", "-Command", `
                 "Write-Host 'NGROK RPC TUNNEL' -ForegroundColor Cyan; Write-Host 'Copy the HTTPS URL shown below and share with students' -ForegroundColor Yellow; ngrok http 8545"
             Start-Sleep -Seconds 3
             Write-Host "Open the ngrok window to view the HTTPS URL for students." -ForegroundColor Yellow
             $rpcUrl = "<See ngrok window for HTTPS URL>"
-        } else {
-            Write-Host ""
-            Write-Host "[3/4] Ngrok not found. Students will use your local IP for RPC." -ForegroundColor Yellow
+    } else {
+        Write-Host ""
+        Write-Host "[7/8] Ngrok not found. Students will use your local IP for RPC." -ForegroundColor Yellow
             Write-Host "TIP: Install ngrok from https://ngrok.com/download for remote students" -ForegroundColor Cyan
         }
     } else {
         Write-Host ""
-        Write-Host "[3/4] Skipping ngrok (use -UseNgrok flag to enable)" -ForegroundColor Gray
+        Write-Host "[6/7] Skipping ngrok (use -UseNgrok flag to enable)" -ForegroundColor Gray
         if ($hasNgrok) {
             Write-Host "TIP: Run with -UseNgrok to expose your lab to remote students" -ForegroundColor Cyan
         }
     }
 
-    # 4. Create instructor config and start frontend
+    # 8. Create instructor config and start frontend
     Write-Host ""
-    Write-Host "[4/4] Starting instructor dashboard..." -ForegroundColor Green
+    Write-Host "Starting instructor dashboard..." -ForegroundColor Green
 
     # Create instructor info file
     @{
@@ -154,21 +304,33 @@ function Start-InstructorMode {
     Write-Host "INSTRUCTOR SETUP COMPLETE" -ForegroundColor Green
     Write-Host "==================================================" -ForegroundColor Yellow
     Write-Host ""
+    Write-Host "REMOTE STUDENTS - Open in browser:" -ForegroundColor Magenta
+    Write-Host "  http://$($ipAddr):5173" -ForegroundColor Yellow
+    Write-Host "  (Web UI + Lab Terminal + CLI access - all in one)" -ForegroundColor Gray
+    Write-Host ""
     Write-Host "WRITE ON BOARD FOR STUDENTS:" -ForegroundColor Magenta
-    Write-Host "  Contract Address: $posAddr" -ForegroundColor Yellow
+    Write-Host "  Lab URL:      http://$($ipAddr):5173" -ForegroundColor Yellow
+    Write-Host "  Contract:     $posAddr" -ForegroundColor Yellow
     if ($UseNgrok) {
         Write-Host "  RPC URL: [see ngrok window]" -ForegroundColor Yellow
     } else {
-        Write-Host "  RPC URL: http://$($ipAddr):8545" -ForegroundColor Yellow
+        Write-Host "  RPC URL:     http://$($ipAddr):8545" -ForegroundColor Yellow
     }
     Write-Host ""
-    Write-Host "Students should run:" -ForegroundColor Cyan
+    Write-Host "Firewall: Allow ports 5173, 8545, 3000, 3002 (if students can't connect)" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "Alternative (run app locally):" -ForegroundColor Cyan
     Write-Host "  .\start-lab.ps1 -Mode student" -ForegroundColor White
     Write-Host ""
     Write-Host "FILES CREATED:" -ForegroundColor Gray
     Write-Host "  CONTRACT_ADDRESS.txt  - Contract address only" -ForegroundColor Gray
     Write-Host "  deployment.json       - Full deployment details" -ForegroundColor Gray
     Write-Host "  instructor-config.json - Instructor configuration" -ForegroundColor Gray
+    Write-Host "  game-config.json       - Chain City (frontend/public)" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "Chain City: Live view -> Chain City button (Instructor/Student)" -ForegroundColor Cyan
+    Write-Host "Beacon Chain Lab: Sidebar -> Beacon Chain Lab (or ?view=beacon-lab)" -ForegroundColor Cyan
+    Write-Host "Lab Terminal: Live view -> Lab Terminal button (CLI, Contract Builder)" -ForegroundColor Cyan
     Write-Host "==================================================" -ForegroundColor Yellow
 
     Write-Host "`nOpening Instructor Dashboard in your browser..."
@@ -309,6 +471,59 @@ function Start-StudentMode {
 }
 
 # ============================================================================
+# BEACON LAB ONLY (lightweight: chain + beacon lab + web)
+# ============================================================================
+function Start-BeaconLabOnly {
+    Write-Host ""
+    Write-Host "==================================================" -ForegroundColor Cyan
+    Write-Host "   BEACON CHAIN LAB (standalone)" -ForegroundColor Cyan
+    Write-Host "==================================================" -ForegroundColor Cyan
+
+    $labDir = (Get-Location).Path
+
+    # 1. Start Hardhat Node
+    Write-Host ""
+    Write-Host "[1/3] Starting blockchain node..." -ForegroundColor Green
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$labDir'; Write-Host 'BLOCKCHAIN NODE - Keep open!' -ForegroundColor Cyan; npm run chain" -WorkingDirectory $labDir
+
+    Write-Host "Waiting for node..." -ForegroundColor Yellow
+    $attempt = 0
+    while ($attempt -lt 60) {
+        Start-Sleep -Seconds 1
+        $attempt++
+        try {
+            $r = Invoke-WebRequest -Uri "http://localhost:8545" -Method POST -Body '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' -ContentType "application/json" -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
+            if ($r.Content -match '"result"') {
+                Write-Host "Node ready!" -ForegroundColor Green
+                break
+            }
+        } catch { Write-Host "." -NoNewline }
+    }
+    if ($attempt -ge 60) {
+        Write-Host "`nNode failed to start." -ForegroundColor Red
+        exit 1
+    }
+    Start-Sleep -Seconds 2
+
+    # 2. Deploy Beacon Chain Lab
+    Write-Host ""
+    Write-Host "[2/3] Deploying Beacon Chain Lab..." -ForegroundColor Green
+    npm run deploy:beacon-lab
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Deploy failed." -ForegroundColor Red
+        exit 1
+    }
+
+    # 3. Start frontend
+    Write-Host ""
+    Write-Host "[3/3] Starting frontend..." -ForegroundColor Green
+    Write-Host "Open: http://localhost:5173/?view=beacon-lab" -ForegroundColor Yellow
+    Write-Host ""
+    Start-Process "http://localhost:5173/?view=beacon-lab"
+    npm run web
+}
+
+# ============================================================================
 # MAIN
 # ============================================================================
 Write-Host ""
@@ -318,6 +533,10 @@ Write-Host "==================================================" -ForegroundColor
 
 if ($Mode -eq "instructor") {
     Start-InstructorMode
+} elseif ($Mode -eq "reset") {
+    Start-ResetMode
+} elseif ($Mode -eq "beacon-lab") {
+    Start-BeaconLabOnly
 } else {
     Start-StudentMode
 }

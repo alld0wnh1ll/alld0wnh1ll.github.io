@@ -151,11 +151,11 @@ export function DiagnosticsView({ rpcUrl, provider, wallet, posAddress, PoSABI }
         description: 'Checks whether a wallet is connected and has test ETH for gas.',
         run: async () => {
           if (!wallet?.address) {
-            return { status: 'warn', summary: 'No wallet address detected yet.', fix: 'Click “Get 5 ETH” (faucet) or connect a wallet first.' }
+            return { status: 'warn', summary: 'No wallet address detected yet.', fix: 'Click “Get test ETH from instructor” Connect a wallet first. Ask your instructor for test ETH.' }
           }
           const bal = Number(wallet?.balance || 0)
           if (!bal || bal <= 0) {
-            return { status: 'warn', summary: `Wallet ${wallet.address.slice(0, 6)}… has 0 ETH.`, fix: 'Click “Get 5 ETH” so you can send tx and interact with the contract.' }
+            return { status: 'warn', summary: `Wallet ${wallet.address.slice(0, 6)}… has 0 ETH.`, fix: 'Click “Get test ETH from instructor” Ask your instructor for test ETH so you can send tx and interact with the contract.' }
           }
           return { status: 'pass', summary: `Wallet ${wallet.address.slice(0, 6)}… ready (${bal.toFixed(4)} ETH).` }
         },

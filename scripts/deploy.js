@@ -40,8 +40,13 @@ async function main() {
 
   // Write contract address to file for easy access
   const fs = require('fs');
+  const path = require('path');
   fs.writeFileSync('CONTRACT_ADDRESS.txt', pos.target + '\n');
-  console.log(`\n📝 Contract address saved to CONTRACT_ADDRESS.txt`);
+  
+  // Also write to frontend public dir so the app can auto-detect it
+  const publicConfig = path.join(__dirname, '..', 'frontend', 'public', 'contract-config.json');
+  fs.writeFileSync(publicConfig, JSON.stringify({ contractAddress: pos.target, deployedAt: new Date().toISOString() }));
+  console.log(`\n📝 Contract address saved to CONTRACT_ADDRESS.txt and frontend/public/contract-config.json`);
 }
 
 main().catch((error) => {

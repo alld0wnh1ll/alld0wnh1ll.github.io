@@ -446,6 +446,11 @@ body {
     50% { opacity: 0.7; transform: scale(1.1); }
 }
 
+@keyframes scanLine {
+    0% { top: 0; }
+    100% { top: 100%; }
+}
+
 .user-bar {
     display: flex;
     align-items: center;
@@ -860,7 +865,14 @@ button {
     font-size: 12px;
 }
 
-.activity-block {
-    color: #666;
-    font-size: 12px;
+/* Beacon Chain Lab - responsive main + sidebar */
+.beacon-lab-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1.5rem;
+}
+@media (max-width: 1000px) {
+  .beacon-lab-grid {
+    grid-template-columns: 1fr;
+  }
 }

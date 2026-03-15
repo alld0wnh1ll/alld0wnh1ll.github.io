@@ -326,6 +326,8 @@
     <input type="text" id="rpcUrl" value="http://localhost:8545" placeholder="Blockchain URL">
     <select id="contractType">
       <option value="houseSale">House Sale</option>
+      <option value="carSale">Car Sale</option>
+      <option value="ransomPayment">Ransomware</option>
       <option value="classroomVote">Classroom Vote</option>
       <option value="voting">Voting System</option>
       <option value="crowdfunding">Crowdfunding</option>
@@ -385,15 +387,29 @@
       eventTickets: [
         'function getEventInfo() view returns (string, string, uint256, uint256, uint256, bool)',
       ],
+      carSale: [
+        'function currentState() view returns (uint8)',
+        'function salePrice() view returns (uint256)',
+        'function depositAmount() view returns (uint256)',
+        'function getParticipants() view returns (address, address, address, address)',
+      ],
+      ransomPayment: [
+        'function attacker() view returns (address)',
+        'function getContractBalance() view returns (uint256)',
+      ],
     };
 
     const ICONS = {
       houseSale: '🏠',
+      carSale: '🚗',
+      ransomPayment: '🔐',
       classroomVote: '🎓',
       voting: '🗳️',
       crowdfunding: '💰',
       eventTickets: '🎟️',
     };
+
+    const CAR_SALE_STATES = ['Listed', 'DepositPaid', 'InspectionRequested', 'InspectionPassed', 'InspectionFailed', 'Completed', 'Refunded'];
 
     async function connectProvider() {
       const rpcUrl = document.getElementById('rpcUrl').value.trim();
@@ -545,6 +561,8 @@
         
         switch (type) {
           case 'houseSale': return await renderHouseSale(address, ethersContract);
+          case 'carSale': return await renderCarSale(address, ethersContract);
+          case 'ransomPayment': return await renderRansomPayment(address, ethersContract);
           case 'classroomVote': return await renderClassroomVote(address, ethersContract);
           case 'voting': return await renderVoting(address, ethersContract);
           case 'crowdfunding': return await renderCrowdfunding(address, ethersContract);
@@ -649,6 +667,84 @@
               <div class="action-desc">${actions[state].action}</div>
             </div>
             ` : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    async function renderCarSale(address, contract) {
+      const state = Number(await contract.currentState());
+      const price = ethers.formatEther(await contract.salePrice());
+      const deposit = ethers.formatEther(await contract.depositAmount());
+      const [admin, seller, buyer, mechanic] = await contract.getParticipants();
+      const stateClass = state === 5 ? 'complete' : state === 6 ? 'closed' : 'pending';
+      return `
+        <div class="contract-card">
+          <div class="card-header">
+            <span class="card-icon">🚗</span>
+            <div>
+              <div class="card-title">Car Sale (Lemon)</div>
+              <div class="card-address">${address}</div>
+            </div>
+            <button class="remove-btn" onclick="removeContract('${address}')">Remove</button>
+          </div>
+          <div class="card-body">
+            <span class="status-badge ${stateClass}">${CAR_SALE_STATES[state] || state}</span>
+            <div class="info-row">
+              <span class="info-label">Sale Price</span>
+              <span class="info-value highlight">${price} ETH</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Deposit</span>
+              <span class="info-value">${deposit} ETH</span>
+            </div>
+            <div class="participants-section">
+              <div class="participants-title">Participants</div>
+              <div class="participant">
+                <span class="participant-role">Seller</span>
+                <span class="participant-address">${shortenAddress(seller)}</span>
+              </div>
+              <div class="participant">
+                <span class="participant-role">Buyer</span>
+                <span class="participant-address">${shortenAddress(buyer)}</span>
+              </div>
+              <div class="participant">
+                <span class="participant-role">Mechanic</span>
+                <span class="participant-address">${shortenAddress(mechanic)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function renderRansomPayment(address, contract) {
+      const attacker = await contract.attacker();
+      const balance = ethers.formatEther(await contract.getContractBalance());
+      return `
+        <div class="contract-card">
+          <div class="card-header">
+            <span class="card-icon">🔐</span>
+            <div>
+              <div class="card-title">Ransomware Scenario</div>
+              <div class="card-address">${address}</div>
+            </div>
+            <button class="remove-btn" onclick="removeContract('${address}')">Remove</button>
+          </div>
+          <div class="card-body">
+            <span class="status-badge open">Active</span>
+            <div class="info-row">
+              <span class="info-label">Attacker (receives)</span>
+              <span class="participant-address">${shortenAddress(attacker)}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Contract Balance</span>
+              <span class="info-value">${balance} ETH</span>
+            </div>
+            <div class="action-needed">
+              <div class="action-title">Investigator Task</div>
+              <div class="action-desc">Trace Victim → Contract → Attacker → Tumblers → Final address</div>
+            </div>
           </div>
         </div>
       `;

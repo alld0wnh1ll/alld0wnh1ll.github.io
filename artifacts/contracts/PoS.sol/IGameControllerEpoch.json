@@ -1,0 +1,18 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "IGameControllerEpoch",
+  "sourceName": "contracts/PoS.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "advanceEpochFromPoS",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x",
+  "deployedBytecode": "0x",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

@@ -26,7 +26,7 @@ class BlockchainSync {
     this.isPolling = false;
     this.pollIntervalMs = 1000; // 1 second for responsive updates
     this.retryCount = 0;
-    this.maxRetries = 3;
+    this.maxRetries = 5;
   }
 
   /**
@@ -199,14 +199,16 @@ class BlockchainSync {
       currentEpoch,
       timeUntilNextEpoch,
       currentAPY,
-      contractBalance
+      contractBalance,
+      lastProposedBlockNumber
     ] = await Promise.all([
       contract.totalStaked(),
       contract.getValidatorCount(),
       contract.currentEpoch(),
       contract.getTimeUntilNextEpoch(),
       contract.getCurrentAPY(),
-      provider.getBalance(this.contractAddress)
+      provider.getBalance(this.contractAddress),
+      contract.lastProposedBlockNumber()
     ]);
 
     // Fetch recent events (last 100 blocks or from block 0)
@@ -221,11 +223,14 @@ class BlockchainSync {
 
     // Process chat messages (all time)
     const allMessages = await contract.queryFilter(contract.filters.NewMessage(), 0);
-    const messages = allMessages.map(e => ({
-      sender: e.args[0],
-      text: e.args[1],
-      timestamp: Number(e.args[2])
-    })).sort((a, b) => a.timestamp - b.timestamp);
+    const messages = allMessages.map(e => {
+      const args = e.args || [];
+      return {
+        sender: args[0] ?? args.sender,
+        text: args[1] ?? args.message ?? '',
+        timestamp: Number(args[2] ?? args.timestamp ?? 0)
+      };
+    }).sort((a, b) => a.timestamp - b.timestamp);
 
     // Build participant roster from events (stakers + chat participants)
     const allStakeEvents = await contract.queryFilter(contract.filters.Staked(), 0);
@@ -275,7 +280,8 @@ class BlockchainSync {
         currentEpoch: Number(currentEpoch),
         timeUntilNextEpoch: Number(timeUntilNextEpoch),
         currentAPY: Number(currentAPY) / 100,
-        contractBalance: ethers.formatEther(contractBalance)
+        contractBalance: ethers.formatEther(contractBalance),
+        lastProposedBlockNumber: Number(lastProposedBlockNumber)
       },
       messages,
       validators: validatorAddresses,

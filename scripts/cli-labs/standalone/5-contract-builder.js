@@ -422,6 +422,41 @@ contract HouseSale {
     ],
   },
 
+  carSale: {
+    name: 'Car Sale (Lemon Scenario)',
+    description: 'Escrow with mechanic inspection. Teaches information asymmetry: contract enforces process, not truth. Mechanic can attest honestly or lie.',
+    icon: '🚗',
+    fields: [
+      { name: 'sellerAddress', prompt: 'Seller address (leave blank for deployer)', type: 'address', default: '' },
+      { name: 'buyerAddress', prompt: 'Buyer address (leave blank to set later)', type: 'address', default: '' },
+      { name: 'mechanicAddress', prompt: 'Mechanic/Inspector address (leave blank to set later)', type: 'address', default: '' },
+    ],
+    generateContract: () => {
+      const carSaleSource = fs.readFileSync(path.join(PROJECT_ROOT, 'contracts', 'student', 'CarSale_000001.sol'), 'utf8');
+      return carSaleSource;
+    },
+    constructorArgs: (params) => [
+      params.sellerAddress || '0x0000000000000000000000000000000000000000',
+      params.buyerAddress || '0x0000000000000000000000000000000000000000',
+      params.mechanicAddress || '0x0000000000000000000000000000000000000000'
+    ],
+  },
+
+  ransomPayment: {
+    name: 'Ransomware Payment (Forensics Lab)',
+    description: 'Victims pay ETH through contract; creates on-chain trail. Investigators trace to attacker address.',
+    icon: '🔐',
+    fields: [
+      { name: 'attackerAddress', prompt: 'Attacker address (receives ransom)', type: 'address', default: '' },
+    ],
+    generateContract: () => {
+      return fs.readFileSync(path.join(PROJECT_ROOT, 'contracts', 'student', 'RansomPayment_000001.sol'), 'utf8');
+    },
+    constructorArgs: (params) => [
+      params.attackerAddress || '0x0000000000000000000000000000000000000000'
+    ],
+  },
+
   vehicleTitle: {
     name: 'Vehicle Title Transfer',
     description: 'Registry for vehicle ownership with transfer history and VIN tracking.',

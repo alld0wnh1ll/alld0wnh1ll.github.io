@@ -1,0 +1,64 @@
+{
+  "objectives": [
+    {
+      "id": "flipper",
+      "name": "Flipper",
+      "description": "Buy low, sell high. Flip at least 3 cars for profit within the game."
+    },
+    {
+      "id": "lemon_seller",
+      "name": "Lemon Seller",
+      "description": "Sell a car with an unregistered or invalid inspection hash without disclosure."
+    },
+    {
+      "id": "launderer",
+      "name": "Launderer",
+      "description": "Use the Mixer to obscure the origin of funds across at least 2 epochs."
+    },
+    {
+      "id": "builder",
+      "name": "Builder",
+      "description": "Create and deploy a StudentToken via TokenFactory. Grow its liquidity."
+    },
+    {
+      "id": "detective",
+      "name": "Detective",
+      "description": "Identify and report a lemon car or rug pull before it harms others."
+    },
+    {
+      "id": "whale",
+      "name": "Whale",
+      "description": "Accumulate the highest balance among all players by game end."
+    },
+    {
+      "id": "insurer",
+      "name": "Insurer",
+      "description": "Purchase insurance and successfully file a valid claim."
+    },
+    {
+      "id": "rug_puller",
+      "name": "Rug Puller",
+      "description": "Create a drainable token, attract liquidity, then drain it."
+    },
+    {
+      "id": "auditor",
+      "name": "Auditor",
+      "description": "Discover a drainable token via storage slot inspection before it is drained."
+    },
+    {
+      "id": "broker",
+      "name": "Broker",
+      "description": "Complete at least 3 successful P2P escrows via the Marketplace."
+    },
+    {
+      "id": "market_maker",
+      "name": "Market Maker",
+      "description": "List at least 5 cars and facilitate 3+ sales as a seller."
+    },
+    {
+      "id": "survivor",
+      "name": "Survivor",
+      "description": "Avoid being slashed, frozen, or liquidated. Finish with positive balance."
+    }
+  ]
+}

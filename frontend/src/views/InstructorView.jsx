@@ -13,8 +13,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { rpcClient } from '../lib/RpcClient';
 import PoSABI from '../PoS.json';
-
-export function InstructorView({ provider, posAddress, rpcUrl }) {
+export function InstructorView({ provider, posAddress, rpcUrl, wallet, onOpenTerminal }) {
   // Initialize rpcClient with the RPC URL
   useEffect(() => {
     if (rpcUrl) {
@@ -32,6 +31,8 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
   const [validatorCount, setValidatorCount] = useState(0);
   const [currentAPY, setCurrentAPY] = useState(0);
   const [currentEpoch, setCurrentEpoch] = useState(1);
+  const [currentSlot, setCurrentSlot] = useState(1);
+  const [participationRate, setParticipationRate] = useState(0);
   const [timeUntilNextEpoch, setTimeUntilNextEpoch] = useState(0);
   
   // Activity feed
@@ -43,9 +44,41 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
   const [slashReason, setSlashReason] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [statusMessage, setStatusMessage] = useState('');
-  const [lastProposedValidator, setLastProposedValidator] = useState(null);
   const [actionLog, setActionLog] = useState([]);
   const [isActionInProgress, setIsActionInProgress] = useState(false);
+  const [activeScenario, setActiveScenario] = useState('Car Sale');
+  const [fundAddress, setFundAddress] = useState('');
+  const [fundAmount, setFundAmount] = useState('5');
+  const [artifactInput, setArtifactInput] = useState('');
+  const [filterRole, setFilterRole] = useState('');
+  const [filterHasContract, setFilterHasContract] = useState('');
+  const [fundRequests, setFundRequests] = useState([]);
+
+  // Poll student fund requests from Lab API
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const r = await fetch('/lab-api/fund-requests');
+        if (r.ok) {
+          const data = await r.json();
+          setFundRequests(data.requests || []);
+        }
+      } catch {}
+    };
+    poll();
+    const id = setInterval(poll, 3000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Role options per scenario (plan: Part Z)
+  const SCENARIO_ROLES = {
+    'Car Sale': ['', 'Car Seller', 'Car Buyer', 'Mechanic', 'Detective'],
+    'House Sale': ['', 'Admin', 'Seller', 'Buyer'],
+    'Ransomware': ['', 'Victim', 'Attacker', 'Investigator'],
+    'Event Tickets': ['', 'Organizer', 'Buyer'],
+    'Voting': ['', 'Admin', 'Voter'],
+    'Crowdfunding': ['', 'Creator', 'Contributor']
+  };
   
   // Track last processed block for incremental updates
   const lastBlockRef = useRef(0);
@@ -70,7 +103,16 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
         // Verify contract exists before fetching data
         const code = await provider.getCode(posAddress);
         if (code === '0x' || code === '0x0') {
-          // Contract not deployed yet - silently skip
+          // Contract not deployed at this address
+          console.warn(`[InstructorView] No contract at ${posAddress}. Check CONTRACT_ADDRESS.txt or redeploy.`);
+          return;
+        }
+        // Verify it's actually a PoS contract by checking for instructor()
+        const posContract = new ethers.Contract(posAddress, PoSABI, provider);
+        try {
+          await posContract.instructor();
+        } catch (abiErr) {
+          console.error(`[InstructorView] Contract at ${posAddress} doesn't have instructor() — wrong contract or ABI mismatch.`);
           return;
         }
         
@@ -85,17 +127,17 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
 
         setIsLoading(true);
         
-        const posContract = new ethers.Contract(posAddress, PoSABI, provider);
         const cache = activityCacheRef.current;
         
         // Get contract stats
-        const [total, balance, valCount, apy, epoch, epochTime] = await Promise.all([
+        const [total, balance, valCount, apy, epoch, epochTime, currentSlot] = await Promise.all([
           posContract.totalStaked(),
           provider.getBalance(posAddress),
           posContract.getValidatorCount(),
           posContract.getCurrentAPY(),
           posContract.currentEpoch(),
-          posContract.getTimeUntilNextEpoch()
+          posContract.getTimeUntilNextEpoch(),
+          posContract.currentSlot()
         ]);
         
         setTotalStaked(ethers.formatEther(total));
@@ -104,6 +146,7 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
         setCurrentAPY(Number(apy) / 100); // Convert from 500 to 5.00
         setCurrentEpoch(Number(epoch));
         setTimeUntilNextEpoch(Number(epochTime));
+        setCurrentSlot(Number(currentSlot));
         
         // Fetch all event types
         const [newStakes, newWithdraws, newMsgs, newSlashes, newBlocks] = await Promise.all([
@@ -164,32 +207,74 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
           }
           cache.addressMap.get(e.args.proposer).blocks++;
         });
+
+        // Build role map from [SCENARIO:...] and [ROLES:...] chat messages (frontend-only roles)
+        const roleMap = new Map();
+        const sortedAddrs = [...cache.addressMap.keys()].map(a => a.toLowerCase()).sort();
+        for (const e of cache.messageEvents) {
+          const text = e.args?.message || e.args?.[1];
+          if (!text || typeof text !== 'string') continue;
+          const scenarioMatch = text.match(/^\[SCENARIO:([^:]+):([^\]]+)\]$/);
+          if (scenarioMatch) {
+            const roles = scenarioMatch[2].split(',').map(r => r.trim()).filter(Boolean);
+            sortedAddrs.forEach((addr, idx) => {
+              roleMap.set(addr, roles[idx % roles.length]);
+            });
+          }
+          const rolesMatch = text.match(/\[ROLES:([^\]]+)\]/);
+          if (rolesMatch) {
+            rolesMatch[1].split(';').forEach(p => {
+              if (p.length < 44) return;
+              const addr = p.slice(0, 42).toLowerCase();
+              if (p[42] !== ':') return;
+              const role = p.slice(43).trim();
+              if (addr && role) roleMap.set(addr, role);
+            });
+          }
+        }
         
-        // Build student data with enhanced stats
+        // Build student data with enhanced stats (role from parsed chat, not contract)
         const studentData = await Promise.all(
           Array.from(cache.addressMap.keys()).map(async (address) => {
+            const activity = cache.addressMap.get(address) || { stakes: 0, messages: 0, withdrawals: 0, slashes: 0, blocks: 0 };
+            const role = roleMap.get(address.toLowerCase()) || '';
             try {
-              const [bal, stats] = await Promise.all([
-              provider.getBalance(address),
-                posContract.getValidatorStats(address)
-            ]);
-            
-            const activity = cache.addressMap.get(address);
-            
-            return {
-              address,
-              balance: ethers.formatEther(bal),
+              const [bal, stats, hasAttested, roleContract] = await Promise.all([
+                provider.getBalance(address),
+                posContract.getValidatorStats(address),
+                posContract.hasAttestedThisEpoch(address),
+                posContract.roleContractAddress(address)
+              ]);
+              return {
+                address,
+                balance: ethers.formatEther(bal),
                 stake: ethers.formatEther(stats.stakeAmount),
                 reward: ethers.formatEther(stats.rewardAmount),
                 slashCount: Number(stats.slashes),
                 blocksProposed: Number(stats.blocks),
                 missedAttestations: Number(stats.attestations),
                 unbondingTime: Number(stats.unbondingTime),
-              ...activity
-            };
+                hasAttestedThisEpoch: hasAttested,
+                role,
+                roleContract: roleContract && roleContract !== ethers.ZeroAddress ? roleContract : null,
+                ...activity
+              };
             } catch (e) {
-              console.error(`Error fetching stats for ${address}:`, e);
-              return null;
+              console.warn(`Stats fetch failed for ${address}:`, e.message);
+              return {
+                address,
+                balance: '0',
+                stake: '0',
+                reward: '0',
+                slashCount: 0,
+                blocksProposed: 0,
+                missedAttestations: 0,
+                unbondingTime: 0,
+                hasAttestedThisEpoch: false,
+                role,
+                roleContract: null,
+                ...activity
+              };
             }
           })
         );
@@ -203,6 +288,11 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
         });
         
         setStudents(validStudents);
+        
+        // Participation rate: validators who attested this epoch / total validators
+        const validators = validStudents.filter(s => parseFloat(s.stake) > 0);
+        const attested = validators.filter(s => s.hasAttestedThisEpoch);
+        setParticipationRate(validators.length > 0 ? Math.round((attested.length / validators.length) * 100) : 0);
         
         // Build recent activity feed
         const allEvents = [
@@ -267,6 +357,39 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
 
   // Format address for display
   const formatAddress = (addr) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+
+  // Filter students by role and contract status
+  const filteredStudents = students.filter((s) => {
+    if (filterRole && (s.role || '') !== filterRole) return false;
+    if (filterHasContract === 'yes' && !s.roleContract) return false;
+    if (filterHasContract === 'no' && s.roleContract) return false;
+    return true;
+  });
+
+  // Export progress to CSV
+  const exportProgressCSV = () => {
+    const headers = ['Address', 'Role', 'Balance', 'Staked', 'Rewards', 'Role Contract', 'Blocks', 'Slashes', 'Attested'];
+    const rows = filteredStudents.map((s) => [
+      s.address,
+      s.role || '',
+      s.balance,
+      s.stake,
+      s.reward,
+      s.roleContract || '',
+      s.blocksProposed || 0,
+      s.slashCount || 0,
+      s.hasAttestedThisEpoch ? 'Yes' : 'No',
+    ]);
+    const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `progress-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showStatus('✅ CSV exported');
+  };
 
   // Get activity icon
   const getActivityIcon = (type) => {
@@ -342,13 +465,13 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
     }
   };
 
-  // Simulate block proposal
+  // Propose block (staker-first, instructor fallback)
   const handleSimulateBlock = async () => {
     setIsActionInProgress(true);
-    logAction('Block Proposal', '⏳ STARTED', 'Selecting validator...');
+    logAction('Block Proposal', '⏳ STARTED', 'Selecting proposer...');
     
     try {
-      showStatus('🎲 Simulating block proposal...');
+      showStatus('📦 Proposing block...');
       const bankSigner = rpcClient.getBankSigner();
       if (!bankSigner) {
         showStatus('❌ Bank signer not initialized');
@@ -358,7 +481,7 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
       const contract = new ethers.Contract(posAddress, PoSABI, bankSigner);
       
       console.log('[Instructor] Sending block proposal transaction...');
-      const tx = await contract.simulateBlockProposal();
+      const tx = await contract.proposeBlock();
       console.log('[Instructor] Block proposal TX sent:', tx.hash);
       logAction('Block Proposal', '📤 TX SENT', `Hash: ${tx.hash.slice(0, 18)}...`);
       
@@ -377,13 +500,11 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
         const parsed = contract.interface.parseLog(event);
         const proposer = parsed.args.proposer;
         const reward = ethers.formatEther(parsed.args.reward);
-        setLastProposedValidator(proposer);
         showStatus(`✅ Block proposed by ${formatAddress(proposer)}!`, 5000);
         logAction('Block Proposal', '✅ SUCCESS', `Proposer: ${formatAddress(proposer)}, Reward: ${reward} ETH`);
-        console.log('[Instructor] Block proposed by:', proposer, 'Reward:', reward, 'ETH');
       } else {
         showStatus('✅ Block proposed!');
-        logAction('Block Proposal', '✅ SUCCESS', 'Block confirmed (no event found)');
+        logAction('Block Proposal', '✅ SUCCESS', 'Block confirmed');
       }
     } catch (e) {
       console.error('Block simulation error:', e);
@@ -520,6 +641,123 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
     }
   };
 
+  // Send ETH to a single address (used by quick rewards)
+  // Key roles per scenario — assigned first for even distribution (1 each of necessary roles)
+  const SCENARIO_KEY_ROLES = {
+    'Car Sale': ['Car Buyer', 'Mechanic', 'Car Seller', 'Detective'],
+    'House Sale': ['Admin', 'Seller', 'Buyer'],
+    'Ransomware': ['Victim', 'Attacker', 'Investigator'],
+    'Event Tickets': ['Organizer', 'Buyer'],
+    'Voting': ['Admin', 'Voter'],
+    'Crowdfunding': ['Creator', 'Contributor']
+  };
+
+  // Start scenario: broadcast via chat (frontend-only roles, no contract permissions needed)
+  // Role pool: key roles first for even distribution, then extras. No shuffle — deterministic.
+  const handleStartScenario = async () => {
+    console.log('[Instructor] handleStartScenario called. activeScenario:', activeScenario);
+    const roles = SCENARIO_ROLES[activeScenario]?.filter(r => r !== '') || [];
+    if (roles.length === 0) {
+      showStatus('⚠️ No roles for this scenario.');
+      console.log('[Instructor] ABORT: no roles for', activeScenario);
+      return;
+    }
+    const keyRoles = SCENARIO_KEY_ROLES[activeScenario] || [];
+    const remaining = roles.filter(r => !keyRoles.includes(r));
+    const rolePool = [...keyRoles, ...remaining];
+    setIsActionInProgress(true);
+    try {
+      const bankSigner = rpcClient.getBankSigner();
+      if (!bankSigner) {
+        showStatus('❌ RPC not initialized. Set RPC URL in Account settings.');
+        console.log('[Instructor] ABORT: bankSigner is null');
+        return;
+      }
+      console.log('[Instructor] bankSigner:', await bankSigner.getAddress(), 'posAddress:', posAddress);
+      const contract = new ethers.Contract(posAddress, PoSABI, bankSigner);
+      const code = await rpcClient.getProvider().getCode(posAddress);
+      if (!code || code === '0x' || code === '0x0') {
+        showStatus('❌ No contract at this address.');
+        console.log('[Instructor] ABORT: no contract code at', posAddress);
+        return;
+      }
+      const msg = `[SCENARIO:${activeScenario}:${rolePool.join(',')}]`;
+      console.log('[Instructor] Sending SCENARIO message:', msg);
+      const tx = await contract.sendMessage(msg);
+      console.log('[Instructor] TX sent:', tx.hash);
+      const receipt = await tx.wait();
+      console.log('[Instructor] TX confirmed block:', receipt.blockNumber, 'status:', receipt.status);
+      showStatus(`✅ Scenario "${activeScenario}" started! Students will receive roles from chat.`);
+      logAction('Start Scenario', '✅ SUCCESS', activeScenario);
+    } catch (e) {
+      console.error('[Instructor] Start scenario FAILED:', e);
+      showStatus('❌ ' + (e.reason || e.message || String(e)));
+      logAction('Start Scenario', '❌ FAILED', e.reason || e.message);
+    } finally {
+      setIsActionInProgress(false);
+    }
+  };
+
+  // Assign roles via chat: [ROLES:addr1:Role1;addr2:Role2;...] — students parse and set locally
+  const handleAssignRandomRoles = async () => {
+    console.log('[Instructor] handleAssignRandomRoles called. students:', students.length, 'activeScenario:', activeScenario);
+    if (students.length === 0) {
+      showStatus('⚠️ No participants yet. Students must join (stake or chat) first.');
+      console.log('[Instructor] ABORT: no students');
+      return;
+    }
+    const roles = SCENARIO_ROLES[activeScenario]?.filter(r => r !== '') || [];
+    if (roles.length === 0) {
+      showStatus('⚠️ No roles for this scenario. Select a scenario first.');
+      console.log('[Instructor] ABORT: no roles for scenario', activeScenario, 'available:', Object.keys(SCENARIO_ROLES));
+      return;
+    }
+    console.log('[Instructor] Roles for scenario:', roles);
+    setIsActionInProgress(true);
+    try {
+      const bankSigner = rpcClient.getBankSigner();
+      if (!bankSigner) {
+        showStatus('❌ Bank signer not initialized. Check RPC connection.');
+        console.log('[Instructor] ABORT: bankSigner is null');
+        return;
+      }
+      console.log('[Instructor] bankSigner address:', await bankSigner.getAddress());
+      const who = students.filter(s => s.address && ethers.isAddress(s.address)).map(s => s.address);
+      console.log('[Instructor] Valid student addresses:', who);
+      if (who.length === 0) {
+        showStatus('⚠️ No valid addresses to assign.');
+        return;
+      }
+      const keyRoles = SCENARIO_KEY_ROLES[activeScenario] || [];
+      const remaining = roles.filter(r => !keyRoles.includes(r));
+      const basePool = [...keyRoles, ...remaining];
+      const shuffled = [...who];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      const rolesToAssign = shuffled.map((_, i) => basePool[i % basePool.length]);
+      const pairs = shuffled.map((addr, i) => `${addr}:${rolesToAssign[i]}`).join(';');
+      const msg = `[ROLES:${pairs}]`;
+      console.log('[Instructor] Sending ROLES message:', msg.slice(0, 200));
+      console.log('[Instructor] Contract address:', posAddress);
+      const contract = new ethers.Contract(posAddress, PoSABI, bankSigner);
+      showStatus(`🎭 Assigning roles to ${who.length} participant(s)...`);
+      const tx = await contract.sendMessage(msg);
+      console.log('[Instructor] TX sent:', tx.hash);
+      const receipt = await tx.wait();
+      console.log('[Instructor] TX confirmed in block:', receipt.blockNumber, 'status:', receipt.status);
+      showStatus(`✅ Roles assigned to ${who.length} participant(s)! TX: ${tx.hash.slice(0,10)}...`);
+      logAction('Assign Roles', '✅ SUCCESS', `${who.length} assigned`);
+    } catch (e) {
+      console.error('[Instructor] Assign FAILED:', e);
+      showStatus('❌ Assign failed: ' + (e.reason || e.message));
+      logAction('Assign Roles', '❌ FAILED', e.reason || e.message);
+    } finally {
+      setIsActionInProgress(false);
+    }
+  };
+
   // ==================== RENDER ====================
 
   return (
@@ -556,6 +794,23 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
         
         {/* Action Buttons */}
         <div style={{display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '15px'}}>
+          {onOpenTerminal && (
+            <button 
+              onClick={onOpenTerminal}
+              style={{
+                padding: '12px 20px', 
+                background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)', 
+                color: 'white', 
+                border: '1px solid #475569', 
+                borderRadius: '8px', 
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '0.9rem'
+              }}
+            >
+              🖥️ Lab Terminal
+            </button>
+          )}
           <button 
             onClick={handleSimulateBlock}
             style={{
@@ -569,7 +824,7 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
               fontSize: '0.9rem'
             }}
           >
-            🎲 Simulate Block Proposal
+            📦 Propose Block
           </button>
           <button 
             onClick={handleCheckAttestations}
@@ -619,23 +874,164 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
           </button>
         </div>
         
-        {/* Last Block Proposal */}
-        {lastProposedValidator && (
+        {/* Student fund requests - students click "Request funds" to notify instructor */}
+        {fundRequests.length > 0 && (
           <div style={{
-            padding: '10px 15px',
-            background: 'rgba(139, 92, 246, 0.2)',
+            marginTop: '12px',
+            padding: '12px 15px',
+            background: 'rgba(59, 130, 246, 0.2)',
             borderRadius: '8px',
-            marginBottom: '10px',
-            border: '1px solid #8b5cf6'
+            border: '1px solid #3b82f6'
           }}>
-            <span style={{color: '#1e293b'}}>
-              🎲 Last block proposed by: <strong>{formatAddress(lastProposedValidator)}</strong>
-            </span>
+            <div style={{fontSize: '0.85rem', fontWeight: 'bold', color: '#1e293b', marginBottom: '8px'}}>
+              📤 Fund requests ({fundRequests.length})
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '160px', overflowY: 'auto'}}>
+              {fundRequests.slice(0, 10).map((req) => (
+                <div key={req.id} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '6px 10px',
+                  background: 'rgba(255,255,255,0.5)',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem'
+                }}>
+                  <span style={{fontFamily: 'monospace'}}>{req.address.slice(0, 10)}...{req.address.slice(-8)}</span>
+                  {req.nickname && <span style={{color: '#64748b'}}>({req.nickname})</span>}
+                  <button
+                    onClick={async () => {
+                      setFundAddress(req.address);
+                      try {
+                        setIsActionInProgress(true);
+                        const bankSigner = rpcClient.getBankSigner();
+                        if (!bankSigner) return;
+                        const amt = parseFloat(fundAmount) || 5;
+                        const tx = await bankSigner.sendTransaction({
+                          to: req.address,
+                          value: ethers.parseEther(String(amt))
+                        });
+                        await tx.wait();
+                        showStatus(`✅ Sent ${amt} ETH to ${req.nickname || req.address.slice(0, 10)}...`);
+                        await fetch(`/lab-api/fund-request/${req.id}`, { method: 'DELETE' });
+                        setFundRequests(prev => prev.filter(r => r.id !== req.id));
+                      } catch (e) {
+                        showStatus('❌ ' + (e.message || e.reason));
+                      } finally {
+                        setIsActionInProgress(false);
+                      }
+                    }}
+                    disabled={isActionInProgress}
+                    style={{
+                      padding: '4px 10px',
+                      background: '#10b981',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: isActionInProgress ? 'not-allowed' : 'pointer',
+                      fontSize: '0.75rem'
+                    }}
+                  >
+                    Fund {fundAmount || 5} ETH
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
+
+        {/* Fund by address - for students who haven't joined yet (no gas to interact) */}
+        <div style={{
+          marginTop: '12px',
+          padding: '12px 15px',
+          background: 'rgba(16, 185, 129, 0.15)',
+          borderRadius: '8px',
+          border: '1px solid #10b981'
+        }}>
+          <div style={{fontSize: '0.85rem', fontWeight: 'bold', color: '#1e293b', marginBottom: '8px'}}>
+            💸 Fund by address (students with 0 ETH can't join — fund them first)
+          </div>
+          <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center'}}>
+            <input
+              placeholder="0x... (paste student address)"
+              value={fundAddress}
+              onChange={e => setFundAddress(e.target.value)}
+              style={{
+                flex: 1,
+                minWidth: '200px',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: '1px solid #334155',
+                fontFamily: 'monospace',
+                fontSize: '0.85rem'
+              }}
+            />
+            <input
+              type="number"
+              step="0.1"
+              min="0.1"
+              placeholder="ETH"
+              value={fundAmount}
+              onChange={e => setFundAmount(e.target.value)}
+              style={{
+                width: '70px',
+                padding: '8px',
+                borderRadius: '6px',
+                border: '1px solid #334155'
+              }}
+            />
+            <button
+              onClick={async () => {
+                if (!fundAddress || !ethers.isAddress(fundAddress)) {
+                  showStatus('❌ Enter valid address');
+                  return;
+                }
+                const amt = parseFloat(fundAmount);
+                if (isNaN(amt) || amt <= 0) {
+                  showStatus('❌ Enter valid amount');
+                  return;
+                }
+                try {
+                  setIsActionInProgress(true);
+                  const bankSigner = rpcClient.getBankSigner();
+                  if (!bankSigner) {
+                    showStatus('❌ Bank signer not initialized');
+                    return;
+                  }
+                  const tx = await bankSigner.sendTransaction({
+                    to: fundAddress,
+                    value: ethers.parseEther(String(amt))
+                  });
+                  await tx.wait();
+                  showStatus(`✅ Sent ${amt} ETH to ${formatAddress(fundAddress)}`);
+                  setFundAddress('');
+                  logAction('Fund by Address', '✅ SUCCESS', `${amt} ETH → ${formatAddress(fundAddress)}`);
+                } catch (e) {
+                  showStatus('❌ ' + (e.message || e.reason));
+                } finally {
+                  setIsActionInProgress(false);
+                }
+              }}
+              disabled={isActionInProgress || !fundAddress}
+              style={{
+                padding: '8px 16px',
+                background: (isActionInProgress || !fundAddress) ? '#94a3b8' : '#10b981',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: (isActionInProgress || !fundAddress) ? 'not-allowed' : 'pointer',
+                fontWeight: 'bold',
+                fontSize: '0.85rem'
+              }}
+            >
+              Fund
+            </button>
+          </div>
+        </div>
         
         <p style={{fontSize: '12px', color: '#475569'}}>
           <strong>Note:</strong> Slashing and attestation penalties affect validator stakes. Block proposals demonstrate weighted random selection.
+          In real Ethereum, validators attest in committees of ~128. Unbonding: 60s (real: ~27h). Min stake: 1 ETH (real: 32 ETH).
         </p>
         
         {/* Action Log Panel */}
@@ -739,8 +1135,14 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
           <div style={{fontSize: '1.5rem', fontWeight: 'bold', color: '#fbbf24'}}>{currentAPY.toFixed(2)}%</div>
         </div>
         <div className="stat-card" style={{background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', padding: '15px', borderRadius: '10px', textAlign: 'center'}}>
-          <div style={{fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px'}}>Current Epoch</div>
-          <div style={{fontSize: '1.5rem', fontWeight: 'bold', color: '#f472b6'}}>{currentEpoch}</div>
+          <div style={{fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px'}}>Epoch / Slot</div>
+          <div style={{fontSize: '1.5rem', fontWeight: 'bold', color: '#f472b6'}}>{currentEpoch} / {currentSlot}</div>
+          <div style={{fontSize: '0.65rem', color: '#64748b'}}>of 8 slots</div>
+        </div>
+        <div className="stat-card" style={{background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', padding: '15px', borderRadius: '10px', textAlign: 'center'}}>
+          <div style={{fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px'}}>Participation</div>
+          <div style={{fontSize: '1.5rem', fontWeight: 'bold', color: participationRate >= 66 ? '#34d399' : participationRate >= 33 ? '#fbbf24' : '#ef4444'}}>{participationRate}%</div>
+          <div style={{fontSize: '0.65rem', color: '#64748b'}}>attested</div>
         </div>
         <div className="stat-card" style={{background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', padding: '15px', borderRadius: '10px', textAlign: 'center'}}>
           <div style={{fontSize: '0.8rem', color: '#94a3b8', marginBottom: '5px'}}>Next Epoch</div>
@@ -748,9 +1150,168 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
         </div>
       </div>
       
+      {/* Scenario & Role Assignment */}
+      <div style={{marginBottom: '15px', padding: '12px 15px', background: 'rgba(30, 41, 59, 0.8)', borderRadius: '8px', border: '1px solid #475569'}}>
+        <div style={{fontSize: '0.85rem', fontWeight: 'bold', color: '#94a3b8', marginBottom: '8px'}}>
+          🎭 Scenario & Auto-Assign
+        </div>
+        <div style={{display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap'}}>
+          <label style={{color: '#94a3b8', fontSize: '0.9rem'}}>
+            Scenario:
+            <select
+              value={activeScenario}
+              onChange={e => setActiveScenario(e.target.value)}
+              style={{
+                marginLeft: '8px',
+                padding: '8px 12px',
+                background: '#1e293b',
+                border: '1px solid #475569',
+                borderRadius: '6px',
+                color: '#e2e8f0',
+                fontSize: '0.9rem'
+              }}
+            >
+              {Object.keys(SCENARIO_ROLES).map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </label>
+          <button
+            onClick={handleStartScenario}
+            disabled={isActionInProgress}
+            style={{
+              padding: '8px 16px',
+              background: isActionInProgress ? '#475569' : 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: isActionInProgress ? 'not-allowed' : 'pointer',
+              fontWeight: 'bold',
+              fontSize: '0.85rem'
+            }}
+          >
+            ▶ Start Scenario
+          </button>
+          <button
+            onClick={handleAssignRandomRoles}
+            disabled={isActionInProgress || students.length === 0}
+            style={{
+              padding: '8px 16px',
+              background: (isActionInProgress || students.length === 0) ? '#475569' : 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: (isActionInProgress || students.length === 0) ? 'not-allowed' : 'pointer',
+              fontWeight: 'bold',
+              fontSize: '0.85rem'
+            }}
+          >
+            🎲 Assign Unassigned
+          </button>
+        </div>
+        <div style={{fontSize: '0.8rem', color: '#64748b', marginTop: '8px'}}>
+          <strong>Start Scenario</strong> broadcasts roles; new joiners get roles automatically by sorted address (key roles first for even distribution). <strong>Assign Unassigned</strong> assigns roles to current participants who joined before you started. Students join by connecting wallet (auto) or sending a chat message.
+        </div>
+      </div>
+      
+      {/* Post scenario artifact (clues for students to investigate) */}
+      <div style={{
+        marginBottom: '15px',
+        padding: '12px 15px',
+        background: 'rgba(30, 41, 59, 0.8)',
+        borderRadius: '8px',
+        border: '1px solid #475569'
+      }}>
+        <div style={{fontSize: '0.85rem', fontWeight: 'bold', color: '#94a3b8', marginBottom: '8px'}}>
+          📂 Post artifact (clue for scenario)
+        </div>
+        <div style={{display: 'flex', gap: '8px', flexWrap: 'wrap'}}>
+          <input
+            placeholder="e.g. Inspection Report #442: Brake pads 60% worn. Mileage: 89000."
+            value={artifactInput}
+            onChange={e => setArtifactInput(e.target.value)}
+            style={{
+              flex: 1,
+              minWidth: '250px',
+              padding: '8px 12px',
+              background: '#0f172a',
+              border: '1px solid #475569',
+              borderRadius: '6px',
+              color: '#e2e8f0',
+              fontSize: '0.9rem'
+            }}
+          />
+          <button
+            onClick={async () => {
+              if (!artifactInput.trim()) return;
+              const msg = `[ARTIFACT:${artifactInput.trim()}]`;
+              try {
+                setIsActionInProgress(true);
+                const bankSigner = rpcClient.getBankSigner();
+                if (!bankSigner) { showStatus('❌ Bank signer not initialized'); return; }
+                const contract = new ethers.Contract(posAddress, PoSABI, bankSigner);
+                const tx = await contract.sendMessage(msg);
+                await tx.wait();
+                showStatus('✅ Artifact posted. Students see it in Evidence section.');
+                setArtifactInput('');
+              } catch (e) {
+                showStatus('❌ ' + (e.reason || e.message));
+              } finally {
+                setIsActionInProgress(false);
+              }
+            }}
+            disabled={isActionInProgress || !artifactInput.trim()}
+            style={{
+              padding: '8px 16px',
+              background: (isActionInProgress || !artifactInput.trim()) ? '#475569' : '#6366f1',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: (isActionInProgress || !artifactInput.trim()) ? 'not-allowed' : 'pointer',
+              fontWeight: 'bold',
+              fontSize: '0.85rem'
+            }}
+          >
+            Post
+          </button>
+        </div>
+        <div style={{fontSize: '0.75rem', color: '#64748b', marginTop: '6px'}}>
+          Students see artifacts in Evidence section. Make clues tricky—inconsistencies help buyers/investigators.
+        </div>
+      </div>
+      
       {/* Student Table */}
       <div style={{marginBottom: '20px', overflowX: 'auto'}}>
-        <h3 style={{marginBottom: '15px'}}>📊 Validator Activity</h3>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '15px'}}>
+          <h3 style={{margin: 0}}>📊 Validator Activity</h3>
+          <div style={{display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap'}}>
+            <select
+              value={filterRole}
+              onChange={(e) => setFilterRole(e.target.value)}
+              style={{padding: '6px 10px', background: '#1e293b', border: '1px solid #475569', borderRadius: '6px', color: '#e2e8f0', fontSize: '0.85rem'}}
+            >
+              <option value="">All roles</option>
+              {Object.values(SCENARIO_ROLES).flat().filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+            <select
+              value={filterHasContract}
+              onChange={(e) => setFilterHasContract(e.target.value)}
+              style={{padding: '6px 10px', background: '#1e293b', border: '1px solid #475569', borderRadius: '6px', color: '#e2e8f0', fontSize: '0.85rem'}}
+            >
+              <option value="">All</option>
+              <option value="yes">Has contract</option>
+              <option value="no">No contract</option>
+            </select>
+            <button
+              onClick={exportProgressCSV}
+              style={{padding: '6px 12px', background: '#10b981', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold'}}
+            >
+              Export CSV
+            </button>
+          </div>
+        </div>
         <table style={{
           width: '100%',
           borderCollapse: 'collapse',
@@ -768,16 +1329,18 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
               <th style={{padding: '12px', textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem'}}>Blocks</th>
               <th style={{padding: '12px', textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem'}}>Slashes</th>
               <th style={{padding: '12px', textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem'}}>Missed</th>
+              <th style={{padding: '12px', textAlign: 'left', color: '#94a3b8', fontSize: '0.8rem'}}>Role</th>
+              <th style={{padding: '12px', textAlign: 'left', color: '#94a3b8', fontSize: '0.8rem'}}>Contract</th>
+              <th style={{padding: '12px', textAlign: 'left', color: '#94a3b8', fontSize: '0.8rem'}}>Progress</th>
               <th style={{padding: '12px', textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem'}}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {students.map((student, idx) => (
+            {filteredStudents.map((student, idx) => (
               <tr 
                 key={student.address} 
                 style={{
-                  borderBottom: '1px solid #334155',
-                  background: lastProposedValidator === student.address ? 'rgba(139, 92, 246, 0.2)' : 'transparent'
+                  borderBottom: '1px solid #334155'
                 }}
               >
                 <td style={{padding: '12px', color: '#e2e8f0'}}>{idx + 1}</td>
@@ -827,6 +1390,62 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
                 }}>
                   {student.missedAttestations}
                 </td>
+                <td style={{padding: '12px'}}>
+                  <select
+                    value={student.role || ''}
+                    onChange={async (e) => {
+                      const role = e.target.value;
+                      if (!role) return;
+                      try {
+                        setIsActionInProgress(true);
+                        const bankSigner = rpcClient.getBankSigner();
+                        if (!bankSigner) return;
+                        const contract = new ethers.Contract(posAddress, PoSABI, bankSigner);
+                        const tx = await contract.setRole(student.address, role);
+                        await tx.wait();
+                        setStatusMessage(`✅ Role "${role}" assigned`);
+                        setTimeout(() => setStatusMessage(''), 3000);
+                      } catch (err) {
+                        setStatusMessage('❌ ' + (err.reason || err.message));
+                      } finally {
+                        setIsActionInProgress(false);
+                      }
+                    }}
+                    style={{
+                      padding: '4px 8px',
+                      background: '#1e293b',
+                      border: '1px solid #475569',
+                      borderRadius: '4px',
+                      color: '#e2e8f0',
+                      fontSize: '0.8rem',
+                      minWidth: '140px'
+                    }}
+                  >
+                    {SCENARIO_ROLES[activeScenario].map(r => (
+                      <option key={r || 'none'} value={r}>{r || '(none)'}</option>
+                    ))}
+                  </select>
+                </td>
+                <td style={{padding: '12px', fontSize: '0.8rem'}}>
+                  {student.roleContract ? (
+                    <span 
+                      style={{color: '#34d399', fontFamily: 'monospace', cursor: 'pointer'}}
+                      onClick={() => navigator.clipboard.writeText(student.roleContract)}
+                      title={student.roleContract}
+                    >
+                      ✓ {student.roleContract.slice(0, 10)}...
+                    </span>
+                  ) : (
+                    <span style={{color: '#64748b'}}>—</span>
+                  )}
+                </td>
+                <td style={{padding: '12px', fontSize: '0.8rem'}}>
+                  {student.roleContract ? (
+                    <span style={{color: '#34d399'}}>✓ Deployed</span>
+                  ) : (
+                    <span style={{color: '#64748b'}}>—</span>
+                  )}
+                </td>
                 <td style={{padding: '12px', textAlign: 'center'}}>
                   {parseFloat(student.stake) > 0 && (
                     <button
@@ -847,10 +1466,10 @@ export function InstructorView({ provider, posAddress, rpcUrl }) {
                 </td>
               </tr>
             ))}
-            {students.length === 0 && (
+            {filteredStudents.length === 0 && (
               <tr>
-                <td colSpan="9" style={{padding: '30px', textAlign: 'center', color: '#64748b'}}>
-                  Waiting for students to stake...
+                <td colSpan="12" style={{padding: '30px', textAlign: 'center', color: '#64748b'}}>
+                  {students.length === 0 ? 'Waiting for students to stake...' : 'No students match filter'}
                 </td>
               </tr>
             )}

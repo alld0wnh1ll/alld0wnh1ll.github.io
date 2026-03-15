@@ -15,10 +15,15 @@ services:
       dockerfile: Dockerfile
     container_name: ethereum-trainer-student
     ports:
-      - "5173:5173"    # Frontend Web UI only
+      - "5173:5173"    # Frontend Web UI
+      - "3002:3002"    # Lab Terminal (PTY)
+      - "3003:3003"    # Lab Terminal fallback
+      - "3004:3004"    # Lab Terminal fallback
     environment:
       - MODE=student
       - FRONTEND_PORT=5173
+      - TERMINAL_PORTS=3002,3003,3004
+      - TERMINAL_CWD=/app
       # Set this to instructor's blockchain address:
       - INSTRUCTOR_RPC_URL=${INSTRUCTOR_RPC_URL:-http://localhost:8545}
       # Optional: Pre-configure contract address

@@ -10,6 +10,7 @@
 
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
+import { copyToClipboard } from '../lib/clipboard';
 import { 
   generateNewWallet, 
   importWallet, 
@@ -96,15 +97,15 @@ export default function AccountManager({ provider, onAccountChange, compact = fa
     onAccountChange?.(null);
   };
 
-  const copyPrivateKey = () => {
-    navigator.clipboard.writeText(walletInfo.privateKey);
-    setCopied(true);
+  const copyPrivateKey = async () => {
+    const ok = await copyToClipboard(walletInfo.privateKey);
+    setCopied(ok);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const copyAddress = () => {
-    navigator.clipboard.writeText(walletInfo.address);
-    alert('Address copied!');
+  const copyAddress = async () => {
+    const ok = await copyToClipboard(walletInfo.address);
+    alert(ok ? 'Address copied!' : 'Copy failed — try selecting the address manually');
   };
 
   // Compact mode - just shows current account or connect button
@@ -296,7 +297,7 @@ export default function AccountManager({ provider, onAccountChange, compact = fa
                 }}
               />
               <button
-                onClick={() => { navigator.clipboard.writeText(newWalletCreds.address); }}
+                onClick={async () => { await copyToClipboard(newWalletCreds.address); }}
                 style={{
                   padding: '0.5rem 1rem',
                   background: 'rgba(59, 130, 246, 0.3)',
@@ -329,7 +330,7 @@ export default function AccountManager({ provider, onAccountChange, compact = fa
                 }}
               />
               <button
-                onClick={() => { navigator.clipboard.writeText(newWalletCreds.privateKey); }}
+                onClick={async () => { await copyToClipboard(newWalletCreds.privateKey); }}
                 style={{
                   padding: '0.5rem 1rem',
                   background: 'rgba(251, 191, 36, 0.2)',
