@@ -127,7 +127,7 @@ cd /app/scripts/cli-labs/standalone   # or scripts/cli-labs/standalone for local
 node interactive.js
 ```
 
-1. Select **7. Contract Builder Lab**
+1. Select **9. Contract Builder Lab**
 2. Select **6. Classroom Voting Demo**
 3. Enter your voting question and options:
    - Question: "What should our lunch break policy be?"

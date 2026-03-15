@@ -93,7 +93,7 @@ docker-compose exec ethereum-trainer bash
 ```bash
 cd /app/scripts/cli-labs/standalone
 node interactive.js
-# Select: 7. Contract Builder Lab → 5. Crowdfunding Campaign
+# Select: 9. Contract Builder Lab → 5. Crowdfunding Campaign
 ```
 
 ### Accessing the Dashboard
@@ -129,7 +129,7 @@ cd /app/scripts/cli-labs/standalone   # or scripts/cli-labs/standalone for local
 node interactive.js
 ```
 
-1. Select **7. Contract Builder Lab**
+1. Select **9. Contract Builder Lab**
 2. Select **5. Crowdfunding Campaign**
 3. Configure your campaign:
    - Campaign name: "Community Garden Project"

@@ -96,7 +96,7 @@ docker-compose exec ethereum-trainer bash
 ```bash
 cd /app/scripts/cli-labs/standalone
 node interactive.js
-# Select: 7. Contract Builder Lab → 3. Event Tickets
+# Select: 9. Contract Builder Lab → 3. Event Tickets
 ```
 
 ### Accessing the Dashboard
@@ -132,7 +132,7 @@ cd /app/scripts/cli-labs/standalone   # or scripts/cli-labs/standalone for local
 node interactive.js
 ```
 
-1. Select **7. Contract Builder Lab**
+1. Select **9. Contract Builder Lab**
 2. Select **3. Event Tickets**
 3. Configure your event:
    - Event name: "Blockchain Conference 2026"

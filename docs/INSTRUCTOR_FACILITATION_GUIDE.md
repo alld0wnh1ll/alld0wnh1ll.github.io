@@ -108,7 +108,7 @@ Phase 3: Smart Contracts (1-2 hours)
 ├── 6. Smart Contract Guide
 │   └── SimpleStorage: write, compile, deploy, interact
 │
-├── 7. Contract Builder Lab (pick 1-2)
+├── 9. Contract Builder Lab (pick 1-2)
 │   └── House Sale, Voting, Event Tickets, etc.
 │
 Phase 4: Forensics (1.5-2 hours)

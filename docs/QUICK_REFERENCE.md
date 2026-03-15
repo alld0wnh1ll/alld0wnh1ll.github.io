@@ -48,6 +48,8 @@ cd scripts/cli-labs/standalone
 npm start
 ```
 
+**Interactive menu options:** 1–4 Explore, 5–6 Transact, 7 Contract, 8 Playground, **9** Contract Builder Lab, **10** Account Manager, **11** Ransomware Investigation, **12** Advanced Ransomware, **13** Token Concepts.
+
 ---
 
 ## Key Concepts (Student Glossary)

@@ -86,7 +86,7 @@ docker-compose exec ethereum-trainer bash
 ```bash
 cd /app/scripts/cli-labs/standalone
 node interactive.js
-# Select: 7. Contract Builder Lab → 2. Vehicle Title Transfer
+# Select: 9. Contract Builder Lab → 2. Vehicle Title Transfer
 ```
 
 ### Running Hardhat Console
@@ -123,7 +123,7 @@ cd /app/scripts/cli-labs/standalone   # or scripts/cli-labs/standalone for local
 node interactive.js
 ```
 
-1. Select **7. Contract Builder Lab**
+1. Select **9. Contract Builder Lab**
 2. Select **2. Vehicle Title Transfer**
 3. Enter vehicle details:
    - VIN: 1HGCM82633A004352

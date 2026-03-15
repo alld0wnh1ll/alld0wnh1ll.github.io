@@ -4,7 +4,7 @@
 |---|---|
 | **Duration** | 20-30 minutes |
 | **Difficulty** | Beginner |
-| **Prerequisites** | None (conceptual); wallet + ETH for hands-on deploy (Section 4) |
+| **Prerequisites** | None (conceptual) |
 | **Roles** | Student (learner) |
 
 An interactive conceptual lab that teaches the fundamental differences between Fungible Tokens (FT) and Non-Fungible Tokens (NFT) through comparison, real-world examples, and quiz-style validation.
@@ -25,7 +25,7 @@ By completing this lab, students will:
 
 ## Overview
 
-Sections 1-3 are conceptual (no blockchain). **Section 4** offers hands-on deploy: students can deploy real FT and NFT contracts (browser or CLI) to reinforce the concepts. Simulated visualizers are available as fallback.
+Sections 1-3 are conceptual (no blockchain). **Section 4** uses interactive simulated visualizers (FT and NFT) and a quiz to reinforce how tokens work on-chain. For hands-on deployment of real contracts, use the **Tokenization Lab** (Live tab) or the CLI Contract Builder.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -74,14 +74,14 @@ cd /app/scripts/cli-labs/standalone
 node 8-token-concepts.js
 ```
 
-### Web App (Section 4: Hands-On Deploy)
+### Web App (Section 4: How Tokens Work)
 
-In the Learn tab, open **Token Concepts** and go to **Section 4: How Tokens Work**. You can:
+In the Learn tab, open **Token Concepts** (step 5 in the roadmap) and go to **Section 4: How Tokens Work**. You will see:
 
-- **Browser deploy**: Click "Deploy FT (Browser)" or "Deploy NFT (Browser)" to deploy SimpleFT or SimpleNFT. Each has a guided exercise (mint, transfer, verify). Requires wallet + ETH + RPC.
-- **CLI deploy**: Run `node 5-contract-builder.js` from `scripts/cli-labs/standalone/`, select **Simple Fungible Token**, **Simple NFT**, or **Event Tickets (Token Concepts - NFT)**.
+- **Interactive visualizers** — Simulated FT and NFT transfer demos (no wallet or RPC required). Explore how balances and ownership change when tokens move.
+- **Quiz** — Test your understanding of FT vs NFT mechanics.
 
-**Prerequisites for browser deploy**: Create wallet (Account Manager), get ETH (faucet), connect RPC. Or use the simulated visualizers.
+For hands-on deployment of real FT/NFT contracts, use the **Tokenization Lab** (Live tab) or run `node 5-contract-builder.js` from `scripts/cli-labs/standalone/` and select **Simple Fungible Token**, **Simple NFT**, or **Event Tickets**.
 
 ---
 

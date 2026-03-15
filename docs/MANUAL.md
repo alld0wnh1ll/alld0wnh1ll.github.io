@@ -13,7 +13,7 @@ This manual is a **how-to guide** for using the Ethereum Lab. It is written for 
 5. [Understanding addresses](#5-understanding-addresses)
 6. [Getting test ETH](#6-getting-test-eth)
 7. [Sending ETH](#7-sending-eth)
-8. [Staking (Proof of Stake)](#8-staking-proof-of-stake)
+8. [Staking (Beacon Chain Lab)](#8-staking-beacon-chain-lab)
 9. [Transaction history](#9-transaction-history)
 10. [Global chat and classmates](#10-global-chat-and-classmates)
 11. [Contract dashboard (optional)](#11-contract-dashboard-optional)
@@ -40,8 +40,8 @@ The **Live** tab is where you use the **smart contract** and the blockchain with
 1. In the left sidebar, click the **Live** (🌐) button.
 2. You will see:
    - A **wallet header** (your balance and nickname).
-   - **Quick action** buttons: Get 5 ETH, Send, Stake.
-   - Cards for **Your Assets**, **Send ETH**, **Staking**, **Connection Setup**, **Transaction History**, and **Global Chat**.
+   - **Quick action** buttons: Get 5 ETH, Send, and links to **Beacon Chain Lab**.
+   - Cards for **Your Assets**, **Send ETH**, **Connection Setup**, **Transaction History**, and **Global Chat**.
    - A **Classmates** list in the sidebar.
 
 Before you can do much, you need to:
@@ -151,37 +151,13 @@ You can send test ETH to another address (e.g. a classmate).
 
 ---
 
-## 8. Staking (Proof of Stake)
+## 8. Staking (Beacon Chain Lab)
 
 Staking lets you **lock** test ETH in the smart contract and participate as a “validator” to see how **Proof of Stake** works. This is all test ETH; nothing is real money.
 
-### Before you stake
-
-- You need a **balance** of at least 1 ETH (use **Get 5 ETH** first).
-- Staked ETH is **locked** for a short time (about 30 seconds in the lab).
-- To get it back you must **request withdrawal**, then wait an **unbonding period** (about 60 seconds), then **complete withdrawal**.
-
-### How to stake
-
-1. Scroll to the **🏦 Proof of Stake - Become a Validator** section (or click the **Stake** quick action).
-2. Read the short “How it works” and the **⚠️ Before You Stake** notice.
-3. Enter the **Stake Amount (ETH)** (minimum 1 ETH). You can use the **1 ETH**, **5 ETH**, or **MAX** buttons.
-4. Click **🏦 Stake X ETH**.
-5. Wait for the success message. Your **staked** amount and **rewards** will appear in that section and in the header.
-
-### Attesting (optional)
-
-If you have staked and the contract supports it, you may see a **📝 Attest Now** button. Attesting is like “checking in” for the current epoch. Doing it when asked can avoid small penalties in the simulation.
-
-### How to unstake (withdraw)
-
-1. In the same **Staking** section, click **Request Withdrawal** (or similar).  
-   This starts the **unbonding** period (about 60 seconds).
-2. Wait until the countdown shows you can complete the withdrawal.
-3. Click **💸 Complete Withdrawal**.  
-   Your staked ETH (plus any rewards) will return to your normal balance.
-
-If you change your mind during unbonding, you can click **Cancel** to stay staked.
+1. On the **Live** tab, click **Beacon Chain Lab** in the Hands-On Labs sidebar (or the Beacon Lab quick action button).
+2. In the Beacon Chain Lab, you can **Join** the validator pool with 32+ ETH, **Attest** to blocks when in committee, and observe finality and slashing.
+3. See [BEACON_CHAIN_LAB.md](BEACON_CHAIN_LAB.md) for full instructions.
 
 ---
 

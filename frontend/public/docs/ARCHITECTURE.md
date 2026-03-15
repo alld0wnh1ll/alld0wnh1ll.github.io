@@ -160,7 +160,7 @@ flowchart TB
             IntroView
             ConceptsView
             ExploreView
-            ContractDashboard
+            ContractLab
             DiagnosticsView
             InstructorView
             LearnView

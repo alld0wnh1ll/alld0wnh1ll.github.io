@@ -49,14 +49,25 @@ The main tool is an interactive JavaScript console designed for blockchain foren
   4. Transaction lookup
 
 💸 Transact
-  5. Select account
+  5. Switch account (quick select)
   6. Send ETH
 
-📜 Contract
+📜 Contract (when CONTRACT_ADDRESS is set)
   7. Contract interaction
 
 🧪 Advanced
   8. Playground (Analyst Console)  ← Most powerful tool!
+  9. Contract Builder Lab
+
+👤 Identity
+  10. Account Manager (create/fund accounts)
+
+🔍 Forensics
+  11. Ransomware Investigation Lab
+  12. Advanced Ransomware Lab (Multi-Victim)
+
+📚 Learning
+  13. Token Concepts (FT vs NFT)
 ```
 
 ### Playground Mode (Analyst Console)

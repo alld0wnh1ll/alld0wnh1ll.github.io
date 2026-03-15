@@ -108,7 +108,7 @@ Phase 3: Smart Contracts (1-2 hours)
 ├── 6. Smart Contract Guide
 │   └── SimpleStorage: write, compile, deploy, interact
 │
-├── 7. Contract Builder Lab (pick 1-2)
+├── 9. Contract Builder Lab (pick 1-2)
 │   └── House Sale, Voting, Event Tickets, etc.
 │
 Phase 4: Forensics (1.5-2 hours)
@@ -297,6 +297,8 @@ Use these to check understanding and spark conversation:
 ## Quick Reference
 
 See [QUICK_REFERENCE.md](QUICK_REFERENCE.md) for a one-page cheat sheet to use during class.
+
+**Ready-to-use lab plans:** See [INSTRUCTOR_LAB_SCENARIOS.md](INSTRUCTOR_LAB_SCENARIOS.md) for three scenarios (Beginner, Intermediate, Expert) across two 1-hour blocks—with step-by-step tasks to keep students busy.
 
 ## Technical Setup
 

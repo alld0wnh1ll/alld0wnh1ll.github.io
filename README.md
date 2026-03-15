@@ -97,7 +97,7 @@ docker-compose up --build -d
 
 The instructor container will:
 - ✅ Start a Hardhat blockchain node on port 8545
-- ✅ Deploy smart contracts automatically
+- ✅ Deploy PoS Simulator and core contracts
 - ✅ Serve the frontend on port 5173
 - ✅ Display the contract address in the console
 
@@ -152,7 +152,7 @@ npm run deploy
 npm run web
 ```
 
-Then open `http://localhost:5173`. The contract address appears in the deploy output.
+Or use **`.\start-lab.ps1 -Mode instructor`** (Windows) to start everything automatically.
 
 ### Getting the Contract Address
 
@@ -227,7 +227,7 @@ Then open `http://localhost:5173` and enter the contract address when prompted.
 
 1. Open the URL provided by your instructor (e.g. `http://INSTRUCTOR_IP:5173`)
 2. Enter the Contract Address and RPC URL in the connection fields
-3. Click "Request 5 ETH" to get started
+3. Ask your instructor for test ETH to get started (only the instructor can issue funds)
 
 ## 🏫 Running the Lab
 
@@ -239,7 +239,7 @@ Then open `http://localhost:5173` and enter the contract address when prompted.
 
 ### Student Experience
 1. **Generate or Import Wallet**: Create a new wallet or import with private key
-2. **Request Test ETH**: Click "Request 5 ETH" to get funds
+2. **Get Test ETH**: Ask your instructor for test ETH (only the instructor can issue funds)
 3. **Stake ETH**: Lock funds to become a validator
 4. **Earn Rewards**: Participate in consensus and earn staking rewards
 5. **Use CLI Labs**: Run forensics analysis and build smart contracts
@@ -260,14 +260,17 @@ Everyone runs the frontend locally but connects to the instructor's blockchain!
 
 ## 🧪 Lab Exercises
 
-### Web Interface (Live Mode)
+### Web Interface (Live Tab)
+
+All hands-on labs (Beacon Chain Lab, Contract Builder Lab, Tokenization Lab) are under the **Live** tab. The **Learn** tab contains lesson slides and concepts only.
 
 1. **Getting Started**
-   - Request test ETH from the faucet
+   - Ask your instructor for test ETH (only the instructor can issue funds)
    - Generate or import your personal wallet
    - Understand gas and transaction fees
 
 2. **Proof-of-Stake Fundamentals**
+   - Open **Beacon Chain Lab** from the Live tab sidebar
    - Stake ETH to become a validator
    - Monitor real-time reward accumulation
    - Participate in network consensus
