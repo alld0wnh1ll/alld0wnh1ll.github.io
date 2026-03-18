@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { ethers } from 'ethers'
 import { connectWallet, checkNodeStatus, getGuestWallet, getWalletInfo, importWallet, generateNewWallet, setWalletNickname, getWalletList, setActiveWallet } from './web3'
 import PoSABI from './PoS.json'
@@ -16,6 +16,7 @@ import LabDetailView from './components/LabDetailView'
 import ContractLab from './components/ContractLab'
 import { blockchainSync } from './lib/BlockchainSync'
 import { copyToClipboard } from './lib/clipboard'
+import { resolveRpcUrl, rpcClient } from './lib/RpcClient'
 import AccountManager from './components/AccountManager'
 import InlineTerminal from './components/InlineTerminal'
 import NodeGraph from './components/NodeGraph'
@@ -1486,7 +1487,7 @@ const CLI_SECTIONS = [
 
 const CLI_CATEGORIES = ['All', 'Getting Started', 'Smart Contracts', 'Forensics'];
 
-function CLILabsView() {
+function CLILabsView({ isInstructor = false }) {
     const [copiedCommand, setCopiedCommand] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState('All');
@@ -1603,6 +1604,7 @@ function CLILabsView() {
                 lab={selectedLab}
                 onBack={() => setSelectedLabId(null)}
                 basePath={basePath}
+                studentOnly={!isInstructor}
             />
         );
     }
@@ -3638,6 +3640,11 @@ function PoSValidatorSim({ onComplete }) {
             icon: "📝"
         },
         8: {
+            title: "Scaling & Layer 2",
+            subtitle: "How Ethereum scales with rollups",
+            icon: "📈"
+        },
+        9: {
             title: "Graduation",
             subtitle: "You now understand Proof of Stake!",
             icon: "🎓"
@@ -4004,7 +4011,7 @@ function PoSValidatorSim({ onComplete }) {
     
     // Story Mode Next Chapter Handler
     const nextChapter = () => {
-        if (chapter < 8) {
+        if (chapter < 9) {
             setChapter(chapter + 1);
             setChapterStep(0);
             setShowReveal(false);
@@ -5784,8 +5791,154 @@ function PoSValidatorSim({ onComplete }) {
                     </div>
                 )}
                 
-                {/* ========== CHAPTER 8: GRADUATION ========== */}
+                {/* ========== CHAPTER 8: SCALING & LAYER 2 ========== */}
                 {chapter === 8 && (
+                    <div style={{animation: 'fadeIn 0.5s ease'}}>
+                        <div style={{
+                            background: 'linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)',
+                            borderRadius: '1rem',
+                            padding: '2.5rem',
+                            marginBottom: '1.5rem',
+                            border: '2px solid rgba(0,255,204,0.3)',
+                            textAlign: 'center'
+                        }}>
+                            <div style={{fontSize: '4rem', marginBottom: '1rem'}}>📈</div>
+                            <h1 style={{color: '#f8fafc', fontSize: '2rem', margin: '0 0 0.5rem 0'}}>
+                                Chapter 8: Scaling & Layer 2
+                            </h1>
+                            <p style={{color: '#94a3b8', fontSize: '1.1rem', margin: 0}}>
+                                How Ethereum scales with rollups
+                            </p>
+                        </div>
+                        
+                        <div style={{
+                            background: '#1e293b',
+                            borderRadius: '1rem',
+                            padding: '2rem',
+                            border: '1px solid #334155'
+                        }}>
+                            {chapterStep === 0 && (
+                                <>
+                                    <p style={{color: '#cbd5e1', fontSize: '1.1rem', lineHeight: 1.7, marginTop: 0}}>
+                                        L1 Ethereum is secure but limited — more users mean higher fees and slower confirmation. <strong style={{color: '#60a5fa'}}>Layer 2</strong> solves this.
+                                    </p>
+                                    <div style={{
+                                        background: 'rgba(0,255,204,0.1)',
+                                        padding: '1.5rem',
+                                        borderRadius: '0.75rem',
+                                        border: '2px solid rgba(0,255,204,0.4)',
+                                        margin: '1.5rem 0'
+                                    }}>
+                                        <h4 style={{color: '#00ffcc', margin: '0 0 1rem 0'}}>What is Layer 2?</h4>
+                                        <p style={{color: '#e2e8f0', margin: 0, lineHeight: 1.7}}>
+                                            L2 chains (Optimism, Arbitrum, Base) execute transactions off L1, then post data or proofs to L1. They inherit L1 security while scaling throughput. <strong>Rollups</strong> batch many L2 transactions and post compressed data to L1.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setChapterStep(1)}
+                                        style={{
+                                            marginTop: '1.5rem',
+                                            width: '100%',
+                                            padding: '1.25rem',
+                                            background: 'linear-gradient(135deg, #00b894 0%, #00ffcc 100%)',
+                                            border: 'none',
+                                            borderRadius: '0.75rem',
+                                            color: '#0f172a',
+                                            fontSize: '1.1rem',
+                                            fontWeight: 'bold',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Connect to an L2 chain →
+                                    </button>
+                                </>
+                            )}
+                            {chapterStep === 1 && (
+                                <>
+                                    <h4 style={{color: '#00ffcc', margin: '0 0 1rem 0'}}>Connect to an L2 chain</h4>
+                                    <p style={{color: '#cbd5e1', fontSize: '1rem', lineHeight: 1.7, marginBottom: '1rem'}}>
+                                        L2 rollups are <strong>separate chains</strong>. You connect to them via their own RPC URL. Get a public RPC from{' '}
+                                        <a href="https://optimism.io/developers" target="_blank" rel="noreferrer" style={{color: '#00ffcc'}}>Optimism</a> or{' '}
+                                        <a href="https://arbitrum.io/developers" target="_blank" rel="noreferrer" style={{color: '#00ffcc'}}>Arbitrum</a>, then paste it in the 3D Chain Explorer.
+                                    </p>
+                                    <Link
+                                        to="/chain-3d?mode=layer2"
+                                        style={{
+                                            display: 'inline-block',
+                                            padding: '1rem 2rem',
+                                            background: 'linear-gradient(135deg, rgba(0,255,204,0.3) 0%, rgba(0,255,204,0.2) 100%)',
+                                            border: '2px solid rgba(0,255,204,0.5)',
+                                            borderRadius: '0.75rem',
+                                            color: '#00ffcc',
+                                            fontSize: '1rem',
+                                            fontWeight: 'bold',
+                                            textDecoration: 'none',
+                                            marginBottom: '1rem'
+                                        }}
+                                    >
+                                        Open 3D Chain Explorer (L2 mode)
+                                    </Link>
+                                    <p style={{color: '#64748b', fontSize: '0.9rem', marginBottom: '1rem'}}>
+                                        Paste an L2 RPC URL (e.g. https://mainnet.optimism.io), click Connect, then return here.
+                                    </p>
+                                    <button
+                                        onClick={() => setChapterStep(2)}
+                                        style={{
+                                            marginTop: '1rem',
+                                            width: '100%',
+                                            padding: '1.25rem',
+                                            background: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)',
+                                            border: 'none',
+                                            borderRadius: '0.75rem',
+                                            color: 'white',
+                                            fontSize: '1.1rem',
+                                            fontWeight: 'bold',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        I&apos;ve connected — Continue →
+                                    </button>
+                                </>
+                            )}
+                            {chapterStep === 2 && (
+                                <>
+                                    <div style={{
+                                        background: 'rgba(16, 185, 129, 0.1)',
+                                        padding: '1.5rem',
+                                        borderRadius: '0.75rem',
+                                        border: '2px solid rgba(16, 185, 129, 0.4)',
+                                        marginBottom: '1.5rem'
+                                    }}>
+                                        <h4 style={{color: '#86efac', margin: '0 0 0.5rem 0'}}>You connected to an L2 by entering its RPC URL</h4>
+                                        <p style={{color: '#e2e8f0', margin: 0, lineHeight: 1.6}}>
+                                            That&apos;s how L2 is a distinct network — separate chain, own RPC, batches transactions, posts to L1 for security.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={nextChapter}
+                                        style={{
+                                            marginTop: '1rem',
+                                            width: '100%',
+                                            padding: '1.25rem',
+                                            background: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)',
+                                            border: 'none',
+                                            borderRadius: '0.75rem',
+                                            color: 'white',
+                                            fontSize: '1.1rem',
+                                            fontWeight: 'bold',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Continue to Graduation →
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
+                
+                {/* ========== CHAPTER 9: GRADUATION ========== */}
+                {chapter === 9 && (
                     <div style={{animation: 'fadeIn 0.5s ease'}}>
                         <div style={{
                             background: 'linear-gradient(135deg, #1e3a5f 0%, #0f172a 50%, #1a1a2e 100%)',
@@ -5826,7 +5979,8 @@ function PoSValidatorSim({ onComplete }) {
                                     { icon: '🎲', title: 'Selection', desc: 'Weighted random selection keeps it fair' },
                                     { icon: '⚔️', title: 'Slashing', desc: 'Automatic punishment for cheaters' },
                                     { icon: '🤝', title: 'Consensus', desc: '2/3 voting creates permanent agreement' },
-                                    { icon: '📝', title: 'Final Quiz', desc: `Passed with ${quizScore}/15 (${Math.round(quizScore/15*100)}%)` }
+                                    { icon: '📝', title: 'Final Quiz', desc: `Passed with ${quizScore}/15 (${Math.round(quizScore/15*100)}%)` },
+                                    { icon: '📈', title: 'Scaling & L2', desc: 'L2 rollups are separate chains; connect via RPC URL' }
                                 ].map((item, idx) => (
                                     <div key={idx} style={{
                                         display: 'flex',
@@ -5876,6 +6030,22 @@ function PoSValidatorSim({ onComplete }) {
                                 >
                                     🔬 Open Full Simulator
                                 </button>
+                                <Link
+                                    to="/chain-3d?mode=layer2"
+                                    style={{
+                                        padding: '1rem 2rem',
+                                        background: 'linear-gradient(135deg, rgba(0,255,204,0.3) 0%, rgba(0,255,204,0.2) 100%)',
+                                        border: '2px solid rgba(0,255,204,0.5)',
+                                        borderRadius: '0.75rem',
+                                        color: '#00ffcc',
+                                        fontSize: '1rem',
+                                        fontWeight: 'bold',
+                                        textDecoration: 'none',
+                                        display: 'inline-block'
+                                    }}
+                                >
+                                    📈 Explore Layer 2
+                                </Link>
                                 <button
                                     onClick={onComplete}
                                     style={{
@@ -7669,10 +7839,11 @@ return ethers.formatEther(total) + ' ETH staked';`)
         setNodeStatus({ connected: false, blockNumber: 0 })
         return
     }
+    const resolvedUrl = resolveRpcUrl(sanitizedUrl)
     let cancelled = false
     const init = async () => {
       try {
-        const temp = new ethers.JsonRpcProvider(sanitizedUrl)
+        const temp = new ethers.JsonRpcProvider(resolvedUrl)
         let chainId = 31337
         try {
           const network = await temp.getNetwork()
@@ -7680,11 +7851,11 @@ return ethers.formatEther(total) + ' ETH staked';`)
           chainId = Number(network.chainId)
         } catch (_) {
           // RPC may not be ready; use 31337 for local Hardhat
-          if (/localhost|127\.0\.0\.1|8545/.test(sanitizedUrl)) chainId = 31337
+          if (/localhost|127\.0\.0\.1|8545|\/rpc-proxy/.test(sanitizedUrl)) chainId = 31337
         }
         if (cancelled) return
         const staticNet = ethers.Network.from(chainId)
-        const newProvider = new ethers.JsonRpcProvider(sanitizedUrl, staticNet, { staticNetwork: staticNet })
+        const newProvider = new ethers.JsonRpcProvider(resolvedUrl, staticNet, { staticNetwork: staticNet })
         setProvider(newProvider)
       } catch (e) {
         if (!cancelled) {
@@ -7697,6 +7868,11 @@ return ethers.formatEther(total) + ' ETH staked';`)
     init()
     return () => { cancelled = true }
   }, [rpcUrl])
+
+  // Sync RpcClient with app rpcUrl so InstructorView, faucet, etc. use same chain
+  useEffect(() => {
+    if (rpcUrl?.trim()) rpcClient.setRpcUrl(rpcUrl);
+  }, [rpcUrl]);
 
   // 2. Auto-Connect Logic (Live Mode and Token Concepts need wallet for deploy/interact)
   // Skip auto-wallet if new student (by IP) must create first — no auto-EOA
@@ -11437,7 +11613,7 @@ return ethers.formatEther(total) + ' ETH staked';`)
             
             {/* CLI LABS VIEW */}
             {view === 'cli' && (
-                <CLILabsView />
+                <CLILabsView isInstructor={isInstructor} />
             )}
             
             {/* INSTRUCTOR VIEW */}

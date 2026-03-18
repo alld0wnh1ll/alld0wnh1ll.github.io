@@ -6,7 +6,9 @@ import remarkGfm from 'remark-gfm';
  * Renders the full lab instructions from the markdown file.
  * Content is identical to docs/*.md — user can use GUI or open the MD file directly.
  */
-export default function LabDetailView({ lab, onBack, basePath = '' }) {
+const INSTRUCTOR_ONLY_REGEX = /<!--\s*INSTRUCTOR_ONLY\s*-->[\s\S]*?<!--\s*\/INSTRUCTOR_ONLY\s*-->/gi;
+
+export default function LabDetailView({ lab, onBack, basePath = '', studentOnly = false }) {
   const [content, setContent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,6 +27,10 @@ export default function LabDetailView({ lab, onBack, basePath = '' }) {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [lab.doc, docUrl]);
+
+  const displayContent = content && studentOnly
+    ? content.replace(INSTRUCTOR_ONLY_REGEX, '').trim()
+    : content;
 
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto', padding: '2rem' }}>
@@ -46,7 +52,22 @@ export default function LabDetailView({ lab, onBack, basePath = '' }) {
         >
           ← Back to Lab List
         </button>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          {studentOnly && (
+            <span
+              style={{
+                background: 'rgba(34, 197, 94, 0.2)',
+                border: '1px solid rgba(34, 197, 94, 0.5)',
+                borderRadius: '0.35rem',
+                padding: '0.25rem 0.5rem',
+                fontSize: '0.8rem',
+                color: '#86efac',
+                fontWeight: 600,
+              }}
+            >
+              Student view
+            </span>
+          )}
           <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Same content as</span>
           <a
             href={docUrl}
@@ -87,7 +108,7 @@ export default function LabDetailView({ lab, onBack, basePath = '' }) {
         </div>
       )}
 
-      {content && !error && (
+      {displayContent && !error && (
         <article
           className="lab-markdown"
           style={{
@@ -247,7 +268,7 @@ export default function LabDetailView({ lab, onBack, basePath = '' }) {
               pre: ({ children }) => children,
             }}
           >
-            {content}
+            {displayContent}
           </ReactMarkdown>
         </article>
       )}

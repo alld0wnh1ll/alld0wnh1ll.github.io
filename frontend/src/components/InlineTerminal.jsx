@@ -18,9 +18,15 @@ const MAX_RETRIES = 3;
 const RETRY_DELAYS_MS = [1000, 2000, 4000];
 
 function getWsUrls() {
-  const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return TERMINAL_PORTS.map(port => `${protocol}//${host}:${port}`);
+  const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = typeof window !== 'undefined' ? window.location.host : 'localhost:5173';
+  // Prefer same-origin proxy (no extra ports, works behind firewalls)
+  const proxyUrl = `${protocol}//${host}/ws/terminal`;
+  const directUrls = TERMINAL_PORTS.map(p => {
+    const h = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+    return `${protocol}//${h}:${p}`;
+  });
+  return [proxyUrl, ...directUrls];
 }
 
 export default function InlineTerminal({ loadCode, onLoadCodeConsumed, rpcUrl = '', autoStartHardhat = false }) {
@@ -114,8 +120,8 @@ export default function InlineTerminal({ loadCode, onLoadCodeConsumed, rpcUrl = 
     const tryConnect = (urlIndex, retryCount) => {
       if (cancelled) return;
       const url = urls[urlIndex];
-      const port = TERMINAL_PORTS[urlIndex];
-      setErrorMsg(`Connecting to port ${port}${retryCount > 0 ? ` (retry ${retryCount + 1}/${MAX_RETRIES})` : ''}...`);
+      const label = urlIndex === 0 ? 'proxy' : `port ${TERMINAL_PORTS[urlIndex - 1]}`;
+      setErrorMsg(`Connecting to ${label}${retryCount > 0 ? ` (retry ${retryCount + 1}/${MAX_RETRIES})` : ''}...`);
       const sock = new WebSocket(url);
       wsRef.current = sock;
       let didFail = false;
@@ -132,7 +138,7 @@ export default function InlineTerminal({ loadCode, onLoadCodeConsumed, rpcUrl = 
           setTimeout(() => tryConnect(0, retryCount + 1), delay);
         } else {
           setStatus('error');
-          setErrorMsg('Terminal server not running. Run: npm run terminal (in project root). Or use Check CarSale State above.');
+          setErrorMsg('Cannot connect to terminal. Run: npm run terminal (in project root). If using Docker, ensure the container started the terminal server.');
         }
       };
 

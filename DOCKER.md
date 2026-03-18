@@ -100,7 +100,9 @@ Students can either:
 
 ### Lab Terminal (Remote Students)
 
-The **Lab Terminal** in the web UI gives students a browser-based shell. Two setups:
+The **Lab Terminal** in the web UI gives students a browser-based shell. It uses node-pty, which works reliably in Docker (Linux containers). **Instructors on Windows:** Use Docker for instructor mode to avoid node-pty build issues; see README [Troubleshooting](README.md#lab-terminal-wont-start--cannot-connect-to-terminal-server) for local Windows workarounds.
+
+Two setups:
 
 | Student setup | Terminal runs on | RPC / Hardhat |
 |---------------|------------------|---------------|

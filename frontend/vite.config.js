@@ -15,10 +15,6 @@ export default defineConfig(({ command }) => ({
     // Avoid silently switching ports (breaks our PowerShell automation + student setup redirect)
     strictPort: true,
     proxy: {
-      '/api': {
-        target: 'http://localhost:3001',
-        changeOrigin: true
-      },
       '/lab-api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
@@ -28,6 +24,10 @@ export default defineConfig(({ command }) => ({
             if (forwarded) proxyReq.setHeader('X-Forwarded-For', forwarded);
           });
         }
+      },
+      '/ws/terminal': {
+        target: 'ws://localhost:3002',
+        ws: true
       }
     }
   }

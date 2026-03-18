@@ -108,6 +108,7 @@ contract BeaconChainLab {
     event CommitteesAssigned(uint256 epoch);
     event ValidatorExited(address indexed validator, uint256 amount);
     event InactivityPenalty(address indexed validator, uint256 blockIndex, uint256 amount);
+    event PoolConfigUpdated(uint256 validatorsPerCommittee, uint256 poolSize);
 
     // ==================== MODIFIERS ====================
 
@@ -133,7 +134,7 @@ contract BeaconChainLab {
         sessionState = SessionState.LOBBY;
         committeesPerEpoch = _committeesPerEpoch == 0 ? 8 : _committeesPerEpoch;
         validatorsPerCommittee = _validatorsPerCommittee == 0 ? 256 : _validatorsPerCommittee;
-        blocksPerEpoch = _blocksPerEpoch == 0 ? 4 : _blocksPerEpoch;
+        blocksPerEpoch = _blocksPerEpoch == 0 ? 32 : _blocksPerEpoch;
         poolSize = committeesPerEpoch * validatorsPerCommittee; // 2048 with defaults; no practical limit for classroom
         currentEpoch = 1;
         currentSlot = 1;
@@ -209,6 +210,18 @@ contract BeaconChainLab {
 
     function setInactivityPenaltyEnabled(bool _enabled) external onlyInstructor {
         inactivityPenaltyEnabled = _enabled;
+    }
+
+    /**
+     * @notice Instructor sets validators per committee in LOBBY. Reduces pool size and gas for fillBotsAndStart.
+     */
+    function setValidatorsPerCommittee(uint256 _validatorsPerCommittee) external onlyInstructor {
+        require(sessionState == SessionState.LOBBY, "Only in lobby");
+        require(_validatorsPerCommittee >= 1 && _validatorsPerCommittee <= 256, "Validators per committee 1-256");
+        require(validatorPool.length <= committeesPerEpoch * _validatorsPerCommittee, "Pool would be smaller than current validators");
+        validatorsPerCommittee = _validatorsPerCommittee;
+        poolSize = committeesPerEpoch * validatorsPerCommittee;
+        emit PoolConfigUpdated(validatorsPerCommittee, poolSize);
     }
 
     /**
@@ -607,19 +620,19 @@ contract BeaconChainLab {
     }
 
     function _checkFinality() internal {
-        if (blocks.length < 3) return;
+        if (blocks.length < 2 * blocksPerEpoch) return;
         uint256 latest = blocks.length - 1;
         if (!blocks[latest].justified) return;
-        // Follow parent chain from head (canonical chain) — do not finalize orphaned blocks
-        uint256 current = latest;
-        for (uint256 step = 0; step < 2; step++) {
-            bytes32 ph = blocks[current].parentHash;
-            if (ph == bytes32(0)) return;
-            uint256 parentIdx = _findBlockIndexByHash(ph);
-            if (parentIdx == type(uint256).max) return;
-            current = parentIdx;
-        }
-        uint256 toFinalize = current;
+
+        // Casper FFG: checkpoint = last block of each epoch (indices 31, 63, 95, ... for blocksPerEpoch=32)
+        // When current and previous epoch checkpoints are justified, finalize the older one
+        uint256 currentCheckpoint = ((latest + 1) / blocksPerEpoch) * blocksPerEpoch - 1;
+        uint256 prevCheckpoint = currentCheckpoint - blocksPerEpoch;
+
+        if (!blocks[currentCheckpoint].justified) return;
+        if (!blocks[prevCheckpoint].justified) return;
+
+        uint256 toFinalize = prevCheckpoint;
         if (blocks[toFinalize].finalized) return;
         blocks[toFinalize].finalized = true;
         lastFinalizedIndex = toFinalize;

@@ -83,6 +83,7 @@ TechStart (3 ETH)     MedData (4 ETH)     RetailPlus (2.5 ETH)
 
 ---
 
+<!-- INSTRUCTOR_ONLY -->
 ## Docker Setup
 
 If running via Docker, follow these instructions instead of the local setup.
@@ -156,6 +157,7 @@ Students receive:
 - All 3 victim addresses
 - Total reported amount (9.5 ETH)
 - Hint: "All payments converge at a single wallet"
+<!-- /INSTRUCTOR_ONLY -->
 
 ---
 

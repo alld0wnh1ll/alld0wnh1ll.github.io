@@ -2,11 +2,14 @@
 /**
  * Frontend server with Lab API
  * Serves static files and /lab-api/* routes.
+ * Proxies /ws/terminal to Lab Terminal (avoids separate port, firewall issues).
  * Replaces 'serve' in Docker instructor mode.
  */
 
 const express = require('express');
+const http = require('http');
 const path = require('path');
+const { WebSocketServer } = require('ws');
 const { app: labApiApp } = require('./lab-api');
 
 const PORT = parseInt(process.env.FRONTEND_PORT || '5173', 10);
@@ -42,7 +45,41 @@ app.use((req, res) => {
   res.sendFile(path.join(DIST, 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+// Create HTTP server (needed for WebSocket upgrade)
+const server = http.createServer(app);
+
+// WebSocket proxy: /ws/terminal -> Lab Terminal server (same-origin, no extra ports)
+const portsRaw = process.env.TERMINAL_PORTS || process.env.TERMINAL_PORT || '3002';
+const TERMINAL_PORT = parseInt(portsRaw.split(',')[0].trim(), 10) || 3002;
+const TERMINAL_TARGET = `ws://127.0.0.1:${TERMINAL_PORT}`;
+
+const wss = new WebSocketServer({ noServer: true });
+server.on('upgrade', (req, socket, head) => {
+  const url = new URL(req.url || '/', `http://${req.headers.host}`);
+  if (url.pathname === '/ws/terminal') {
+    wss.handleUpgrade(req, socket, head, (clientWs) => {
+      const { WebSocket } = require('ws');
+      const targetWs = new WebSocket(TERMINAL_TARGET);
+      const cleanup = () => {
+        try { clientWs.close(); } catch (_) {}
+        try { targetWs.close(); } catch (_) {}
+      };
+      targetWs.on('open', () => {
+        clientWs.on('message', (data) => { try { if (targetWs.readyState === 1) targetWs.send(data); } catch (_) {} });
+        targetWs.on('message', (data) => { try { if (clientWs.readyState === 1) clientWs.send(data); } catch (_) {} });
+      });
+      targetWs.on('close', cleanup);
+      targetWs.on('error', cleanup);
+      clientWs.on('close', () => { try { targetWs.close(); } catch (_) {} });
+      clientWs.on('error', cleanup);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Frontend + Lab API on http://0.0.0.0:${PORT}`);
   console.log(`  Lab API: /lab-api/session, /lab-api/fund-request, /lab-api/fund-requests`);
+  console.log(`  Lab Terminal proxy: ws://host:${PORT}/ws/terminal (proxies to port ${TERMINAL_PORT})`);
 });

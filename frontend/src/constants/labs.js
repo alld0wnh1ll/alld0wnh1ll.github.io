@@ -159,7 +159,7 @@ export const LABS = [
     difficulty: 'Intermediate',
     terminalsNeeded: 1,
     roles: 'Instructor (starts session), Students (validators)',
-    description: 'Interactive lab demonstrating committee formation, quorum, attestation, finality, and slashing. Students join, bots fill empty slots, blocks are produced automatically.',
+    description: 'Interactive lab demonstrating committee formation, justification threshold, attestation, finality, and slashing. Students join, bots fill empty slots, blocks are produced automatically.',
     steps: [
       { terminal: 1, title: 'Deploy Beacon Lab', instruction: 'Run deploy script (chain must be running).', code: 'npm run deploy:beacon-lab' },
       { terminal: 1, title: 'Open Lab', instruction: 'Open the Beacon Chain Lab in the web app.', code: 'Click "Beacon Chain Lab" in sidebar (Learning mode)' },

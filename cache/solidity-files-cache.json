@@ -1543,8 +1543,8 @@
       ]
     },
     "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\BeaconChainLab.sol": {
-      "lastModificationDate": 1773526304778,
-      "contentHash": "d98b6b018e89b1525dd11ad26f49e6c7",
+      "lastModificationDate": 1773843284965,
+      "contentHash": "1d133cd19094d9ca6b9ec712d08bd4da",
       "sourceName": "contracts/BeaconChainLab.sol",
       "solcConfig": {
         "version": "0.8.19",
@@ -1578,8 +1578,8 @@
       ]
     },
     "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\LabNFT.sol": {
-      "lastModificationDate": 1773501653888,
-      "contentHash": "b823a31bdad1641a0e972f4cd1c09efd",
+      "lastModificationDate": 1773613171867,
+      "contentHash": "d050218fd36c530bd8219138e7f30a3c",
       "sourceName": "contracts/LabNFT.sol",
       "solcConfig": {
         "version": "0.8.19",
@@ -1616,8 +1616,8 @@
       ]
     },
     "C:\\Users\\nicholas.harrell\\Desktop\\03_Projects\\Projects\\blockchain_web\\contracts\\LabNFTSale.sol": {
-      "lastModificationDate": 1773504611734,
-      "contentHash": "3150a6136b40096529923f4cf47b4294",
+      "lastModificationDate": 1773613171867,
+      "contentHash": "5f17f85cd590061801c81dbeeb7ba237",
       "sourceName": "contracts/LabNFTSale.sol",
       "solcConfig": {
         "version": "0.8.19",

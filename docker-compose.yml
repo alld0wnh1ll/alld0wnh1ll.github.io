@@ -31,7 +31,6 @@ services:
     ports:
       - "8545:8545"    # Blockchain RPC - share this with students
       - "5173:5173"    # Frontend Web UI
-      - "3001:3001"    # Chain City indexer API
       - "3002:3002"    # Lab Terminal (PTY WebSocket)
       - "3003:3003"    # Lab Terminal fallback
       - "3004:3004"    # Lab Terminal fallback
@@ -45,7 +44,9 @@ services:
       # Or add your specific IP: - INSTRUCTOR_IP=127.0.0.1,::1,192.168.1.100
       - TERMINAL_PORTS=3002,3003,3004
       - TERMINAL_CWD=/app
-      # - DEPLOY_BEACON_LAB=1  # Uncomment to deploy Beacon Chain Lab at startup
+      - DEPLOY_BEACON_LAB=1
+      - COMMITTEES_PER_EPOCH=8
+      - VALIDATORS_PER_COMMITTEE=8
     volumes:
       # Persist blockchain data between restarts
       - blockchain-data:/app/.hardhat

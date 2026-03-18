@@ -11,6 +11,7 @@ import { EXAMPLE_SCRIPTS } from '../constants/exampleScripts';
 import SimpleStorageArtifact from '../contracts/SimpleStorage.json';
 import CarSaleArtifact from '../contracts/CarSale.json';
 import CarMarketplaceArtifact from '../contracts/CarMarketplace.json';
+import ClassVoteArtifact from '../contracts/ClassVote.json';
 
 function ExampleScriptCard({ script, onLoad }) {
   const [showCode, setShowCode] = useState(false);
@@ -114,7 +115,8 @@ const TEMPLATES = [
     { name: 'buyer', type: 'address', placeholder: '0x...' },
     { name: 'mechanic', type: 'address', placeholder: '0x...' }
   ]},
-  { id: 'CarMarketplace', name: 'Car Marketplace', artifact: CarMarketplaceArtifact, constructorArgs: [] }
+  { id: 'CarMarketplace', name: 'Car Marketplace', artifact: CarMarketplaceArtifact, constructorArgs: [] },
+  { id: 'ClassVote', name: 'Class Vote (Voting)', artifact: ClassVoteArtifact, constructorArgs: [] }
 ];
 
 function ContractLab({ provider, rpcUrl, wallet, onLoadScript, setStatusMsg }) {
@@ -129,6 +131,8 @@ function ContractLab({ provider, rpcUrl, wallet, onLoadScript, setStatusMsg }) {
   const [deployedAddress, setDeployedAddress] = useState('');
   const [connectAddress, setConnectAddress] = useState('');
   const [connectTemplate, setConnectTemplate] = useState('SimpleStorage');
+  const [pastedAbiJson, setPastedAbiJson] = useState('');
+  const [pastedAbi, setPastedAbi] = useState(null);
   const [connectMode, setConnectMode] = useState('read');
   const [callResult, setCallResult] = useState('');
   const [calling, setCalling] = useState(false);
@@ -189,7 +193,10 @@ function ContractLab({ provider, rpcUrl, wallet, onLoadScript, setStatusMsg }) {
       return;
     }
     const t = TEMPLATES.find(x => x.id === connectTemplate);
-    const abi = (connectTemplate === '__custom__' && window.__lastCompiled) ? window.__lastCompiled.abi : t?.artifact?.abi;
+    let abi;
+    if (connectTemplate === '__pasted__' && pastedAbi) abi = pastedAbi;
+    else if (connectTemplate === '__custom__' && window.__lastCompiled) abi = window.__lastCompiled.abi;
+    else abi = t?.artifact?.abi;
     if (!abi) {
       setCallResult('❌ Select a contract type or compile one in Write tab first.');
       return;
@@ -453,14 +460,69 @@ function ContractLab({ provider, rpcUrl, wallet, onLoadScript, setStatusMsg }) {
             <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.35rem' }}>Contract type</label>
             <select
               value={connectTemplate}
-              onChange={e => setConnectTemplate(e.target.value)}
+              onChange={e => { setConnectTemplate(e.target.value); if (e.target.value !== '__pasted__') setPastedAbi(null); }}
               style={{ width: '100%', padding: '0.6rem', background: '#1e293b', border: '1px solid #475569', borderRadius: '0.35rem', color: '#e2e8f0', fontSize: '0.9rem' }}
             >
               {TEMPLATES.map(t => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
               <option value="__custom__">My contract (use last compiled ABI)</option>
+              <option value="__pasted__">Paste ABI (any contract)</option>
             </select>
+            {connectTemplate === '__pasted__' && (
+              <div style={{ marginTop: '0.75rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.35rem' }}>Paste contract ABI (JSON array from artifacts/*.json)</label>
+                <textarea
+                  placeholder='[{"inputs":[],"name":"get","outputs":[{"type":"uint256"}],"stateMutability":"view","type":"function"},...]'
+                  value={pastedAbiJson}
+                  onChange={e => setPastedAbiJson(e.target.value)}
+                  style={{
+                    width: '100%',
+                    minHeight: '120px',
+                    padding: '0.6rem',
+                    background: '#0f172a',
+                    border: '1px solid #475569',
+                    borderRadius: '0.35rem',
+                    color: '#e2e8f0',
+                    fontSize: '0.8rem',
+                    fontFamily: 'monospace'
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    try {
+                      const parsed = typeof pastedAbiJson === 'string' ? JSON.parse(pastedAbiJson) : pastedAbiJson;
+                      const arr = Array.isArray(parsed) ? parsed : (parsed?.abi || parsed?.ABI);
+                      if (!Array.isArray(arr) || arr.length === 0) throw new Error('ABI must be a non-empty array');
+                      setPastedAbi(arr);
+                      setStatusMsg?.('✓ ABI applied. All functions detected.');
+                      setTimeout(() => setStatusMsg?.(''), 3000);
+                    } catch (e) {
+                      setStatusMsg?.('❌ Invalid ABI: ' + (e.message || 'parse error'));
+                      setPastedAbi(null);
+                    }
+                  }}
+                  style={{
+                    marginTop: '0.5rem',
+                    padding: '0.4rem 1rem',
+                    background: '#6366f1',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.35rem',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  Apply ABI
+                </button>
+                {pastedAbi && (
+                  <span style={{ marginLeft: '0.75rem', fontSize: '0.8rem', color: '#34d399' }}>
+                    ✓ {pastedAbi.filter(x => x.type === 'function').length} functions
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Result area - always visible, prominent */}
@@ -509,9 +571,9 @@ function ContractLab({ provider, rpcUrl, wallet, onLoadScript, setStatusMsg }) {
             <div style={{ marginBottom: '1rem' }}>
               <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.75rem' }}>View functions (no gas, no wallet needed)</div>
               {(getFunctions(
-                connectTemplate === '__custom__' && window.__lastCompiled
-                  ? window.__lastCompiled.abi
-                  : TEMPLATES.find(t => t.id === connectTemplate)?.artifact?.abi
+                connectTemplate === '__pasted__' ? pastedAbi :
+                connectTemplate === '__custom__' && window.__lastCompiled ? window.__lastCompiled.abi :
+                TEMPLATES.find(t => t.id === connectTemplate)?.artifact?.abi
               ) || []).filter(f => f.stateMutability === 'view' || f.stateMutability === 'pure').map(fn => {
                 const inputs = fn.inputs || [];
                 return (
@@ -560,7 +622,7 @@ function ContractLab({ provider, rpcUrl, wallet, onLoadScript, setStatusMsg }) {
                   </div>
                 );
               })}
-              {(!getFunctions(connectTemplate === '__custom__' && window.__lastCompiled ? window.__lastCompiled.abi : TEMPLATES.find(t => t.id === connectTemplate)?.artifact?.abi) || []).filter(f => f.stateMutability === 'view' || f.stateMutability === 'pure').length === 0 && (
+              {(!getFunctions(connectTemplate === '__pasted__' ? pastedAbi : connectTemplate === '__custom__' && window.__lastCompiled ? window.__lastCompiled.abi : TEMPLATES.find(t => t.id === connectTemplate)?.artifact?.abi) || []).filter(f => f.stateMutability === 'view' || f.stateMutability === 'pure').length === 0 && (
                 <div style={{ color: '#64748b', fontSize: '0.85rem' }}>No read functions in this contract.</div>
               )}
             </div>
@@ -570,9 +632,9 @@ function ContractLab({ provider, rpcUrl, wallet, onLoadScript, setStatusMsg }) {
             <div>
               <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.75rem' }}>Write functions (require wallet, cost gas)</div>
               {(getFunctions(
-                connectTemplate === '__custom__' && window.__lastCompiled
-                  ? window.__lastCompiled.abi
-                  : TEMPLATES.find(t => t.id === connectTemplate)?.artifact?.abi
+                connectTemplate === '__pasted__' ? pastedAbi :
+                connectTemplate === '__custom__' && window.__lastCompiled ? window.__lastCompiled.abi :
+                TEMPLATES.find(t => t.id === connectTemplate)?.artifact?.abi
               ) || []).filter(f => f.stateMutability !== 'view' && f.stateMutability !== 'pure').map(fn => {
                 const inputs = fn.inputs || [];
                 return (
@@ -621,7 +683,7 @@ function ContractLab({ provider, rpcUrl, wallet, onLoadScript, setStatusMsg }) {
                   </div>
                 );
               })}
-              {(!getFunctions(connectTemplate === '__custom__' && window.__lastCompiled ? window.__lastCompiled.abi : TEMPLATES.find(t => t.id === connectTemplate)?.artifact?.abi) || []).filter(f => f.stateMutability !== 'view' && f.stateMutability !== 'pure').length === 0 && (
+              {(!getFunctions(connectTemplate === '__pasted__' ? pastedAbi : connectTemplate === '__custom__' && window.__lastCompiled ? window.__lastCompiled.abi : TEMPLATES.find(t => t.id === connectTemplate)?.artifact?.abi) || []).filter(f => f.stateMutability !== 'view' && f.stateMutability !== 'pure').length === 0 && (
                 <div style={{ color: '#64748b', fontSize: '0.85rem' }}>No write functions in this contract.</div>
               )}
             </div>
@@ -630,7 +692,7 @@ function ContractLab({ provider, rpcUrl, wallet, onLoadScript, setStatusMsg }) {
       )}
 
       <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '1rem' }}>
-        <strong>Custom contracts:</strong> Use the CLI Contract Builder (<code>node interactive.js → 9</code>) to compile your own Solidity. Deploy, then paste the address above to interact.
+        <strong>Any contract:</strong> Select <strong>Paste ABI</strong> and paste the ABI array from <code>artifacts/.../Contract.json</code> to detect and call all functions. Or compile in the Write tab, then use &quot;My contract&quot;.
       </div>
     </div>
   );

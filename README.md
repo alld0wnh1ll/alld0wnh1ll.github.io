@@ -34,7 +34,7 @@ A comprehensive educational platform that teaches Ethereum, smart contracts, and
 - `npm run deploy` — Deploy smart contracts to local node
 - `npm run web` — Start Vite dev server (port 5173)
 - `npm run lab-api` — Lab API for session, fund requests, wallet tracking (port 3000)
-- `npm run reset` — Full classroom reset (clear blockchain + indexer)
+- `npm run reset` — Full classroom reset (clear blockchain data)
 - `npm run reset:docker` — Docker: remove volumes and start fresh
 - `npm run build` — Compile contracts, copy artifacts, build frontend
 - `npm run test` — Run Hardhat tests
@@ -180,8 +180,8 @@ Share this address with your students!
 
 **Two ways to host the lab:**
 
-1. **Docker** (recommended): `docker-compose up --build` — see [Docker Deployment](#-docker-deployment) above.
-2. **PowerShell** (Windows): Use `start-lab.ps1` below.
+1. **Docker** (recommended): `docker-compose up --build` — see [Docker Deployment](#-docker-deployment) above. Use Docker for instructor mode if you need the **Lab Terminal** (browser-based shell); it works reliably in Linux containers and avoids Windows build issues with node-pty.
+2. **PowerShell** (Windows): Use `start-lab.ps1` below. If the Lab Terminal fails to connect, use Docker instead (see [Troubleshooting](#lab-terminal-wont-start--cannot-connect-to-terminal-server)).
 
 ### Using start-lab.ps1 (Windows)
 
@@ -375,6 +375,16 @@ Students then use this URL as their RPC endpoint instead of a local IP address.
 - Verify the contract address is correct (42 characters, starts with 0x)
 - Check that the blockchain node is running
 - Try redeploying contracts: `npm run deploy`
+
+**Lab Terminal Won't Start / "Cannot connect to terminal server"**
+
+The Lab Terminal uses `node-pty`, a native addon that can fail on Windows during `npm install` or when running `npm run terminal`.
+
+- **Recommended for instructors:** Use **Docker** for instructor mode. The Lab Terminal works reliably in Linux containers with no build issues. See [Docker Deployment](#-docker-deployment).
+- **If running locally on Windows:** Ensure you have build tools installed (Python, Visual Studio Build Tools). If `node-pty` fails to install, try:
+  - `npm rebuild node-pty` after `npm install`
+  - Or use a Node.js version that has prebuilt binaries (check [node-pty releases](https://github.com/microsoft/node-pty/releases))
+- **Alternative:** Run the terminal server inside Docker: `docker-compose exec ethereum-trainer node server/terminal-server.js` (or use the container's built-in terminal)
 
 ### Getting Help
 - Check the terminal output for error messages

@@ -7,7 +7,7 @@
 | **Prerequisites** | Blockchain node running, wallets with test ETH |
 | **Roles** | Instructor (starts session), Students (validators) |
 
-An interactive lab demonstrating Ethereum Proof-of-Stake concepts: validator pool, multiple committees per epoch, quorum, attestation, finality, and report-based slashing. Students join the validator pool, committees are assigned at epoch start, bots fill empty slots, and the instructor drives block proposals. Slashing requires detection and report (whistleblower reward).
+An interactive lab demonstrating Ethereum Proof-of-Stake concepts: validator pool, multiple committees per epoch, justification threshold, attestation, finality, and report-based slashing. Students join the validator pool, committees are assigned at epoch start, bots fill empty slots, and the instructor drives block proposals. Slashing requires detection and report (whistleblower reward).
 
 ---
 
@@ -16,7 +16,7 @@ An interactive lab demonstrating Ethereum Proof-of-Stake concepts: validator poo
 By completing this lab, students will:
 
 1. **Understand committee formation** - Validator pool, pseudo-random assignment to multiple committees per epoch
-2. **Learn quorum requirements** - 2/3 of staked ETH must attest for a block to be justified
+2. **Learn justification threshold** - 2/3 of staked ETH must attest for a block to be justified
 3. **Practice attestation** - Validators attest to blocks (only if in committee for that slot); optional human attestation requirement
 4. **See finality in action** - Block N finalizes when block N+2 is justified (simplified Casper FFG)
 5. **Experience slashing** - Wrong-hash or double vote stores evidence; any validator reports to process slash and earn whistleblower reward
@@ -157,6 +157,7 @@ Progress is saved per deployment. Use **Reset progress** to start over.
 
 ---
 
+<!-- INSTRUCTOR_ONLY -->
 ## Instructor Walkthrough
 
 ### Step 1: Deploy and Share
@@ -167,10 +168,16 @@ Progress is saved per deployment. Use **Reset progress** to start over.
 ### Step 2: Wait for Students to Join
 
 - Students should join with at least 32 ETH each (like mainnet)
-- Pool size = committeesPerEpoch * validatorsPerCommittee (default 8*16=128). Set via `COMMITTEES_PER_EPOCH` and `VALIDATORS_PER_COMMITTEE` env.
-- Wait until most students have joined
+- Pool size = committeesPerEpoch × validatorsPerCommittee (default 8×8=64). Set via `COMMITTEES_PER_EPOCH` and `VALIDATORS_PER_COMMITTEE` env at deploy.
+- Wait until at least one student has joined
 
-### Step 3: Fill Bots and Start
+### Step 3: Set Validators per Committee (Optional but Recommended)
+
+- In **Instructor Controls**, set **Validators per committee** (e.g. 3–8) before starting. Smaller = less gas, faster Fill Bots and Start.
+- Pool size = committees × validators. E.g. 8 committees × 3 validators = 24 pool size.
+- Click **Set** to apply. This reduces gas for the next step.
+
+### Step 4: Fill Bots and Start
 
 1. Optionally check **Require human attestation per block** — blocks will not justify until at least one human has attested (ensures practice)
 2. Click **Fill Bots and Start**
@@ -179,7 +186,9 @@ Progress is saved per deployment. Use **Reset progress** to start over.
 5. Committees are assigned at epoch start (round-robin)
 6. Session state changes to **ACTIVE**
 
-### Step 4: Block Production (Automatic)
+**Dynamic join/leave:** Students can join or rejoin anytime during ACTIVE. New validators are assigned to committees at the next epoch start (like real Ethereum). Exited validators can rejoin with **Rejoin**.
+
+### Step 5: Block Production (Automatic)
 
 1. Blocks are proposed **automatically** every ~12 seconds (Ethereum mainnet simulation)
 2. Proposer is selected stake-weighted (more ETH = higher chance)
@@ -188,7 +197,7 @@ Progress is saved per deployment. Use **Reset progress** to start over.
 
 **How to advance to the next epoch:** Epochs advance automatically. Each block advances the slot (1→2→3→4). When slot reaches `blocksPerEpoch` (default 4), the next block resets slot to 1 and increments the epoch. So every 4 blocks = 1 epoch (~48 seconds). Committees are reshuffled at the start of each epoch (when slot = 1). No manual action needed—just let blocks propose.
 
-### Step 5: Demonstrate Finality
+### Step 6: Demonstrate Finality
 
 1. Propose block 1 — wait for students to attest until justified
 2. Propose block 2 — wait for justification
@@ -196,7 +205,7 @@ Progress is saved per deployment. Use **Reset progress** to start over.
 4. Point out the "finalized" status in the Blocks table and the Finalized Epoch/Slot in the header
 5. Click block 1 to open the block detail; show the Parent Root Hash (clickable to navigate the chain)
 
-### Step 6: Demonstrate Slashing
+### Step 7: Demonstrate Slashing
 
 **Wrong-hash slashing (report-based):**
 1. Have a student click **Attest wrong (demo slash)** — they attest with an incorrect block hash
@@ -221,7 +230,7 @@ Progress is saved per deployment. Use **Reset progress** to start over.
 4. The validator loses 5% of stake and is marked slashed
 5. Slashed validators cannot propose or attest
 
-### Step 7: Optional Features
+### Step 8: Optional Features
 
 **Validator exit:** Students can voluntarily exit and withdraw their stake. Click **Exit validator pool** in the Attest panel. Stake is refunded immediately. Exited validators are removed from committee eligibility for future epochs.
 
@@ -229,9 +238,10 @@ Progress is saved per deployment. Use **Reset progress** to start over.
 
 **Bot misbehavior:** Bots occasionally try wrong-hash or double-vote (configurable %). Use to demonstrate slashing without student participation. Adjust **Wrong hash %** and **Double vote (on fork) %**, then **Apply**.
 
-### Step 8: End Session
+### Step 9: End Session
 
 When finished, click **End Session** to freeze the lab.
+<!-- /INSTRUCTOR_ONLY -->
 
 ---
 
@@ -267,15 +277,15 @@ When finished, click **End Session** to freeze the lab.
 
 | Objective | Met for all? | Gap | Instructor action |
 |-----------|--------------|-----|-------------------|
-| 1. Committee formation | Yes | Pool size = 128 by default. Multiple committees per epoch. | All students who join are in the pool; committees form at epoch start. Check **How committees form** and **Committees for Epoch N**. |
-| 2. Quorum requirements | Yes | — | All students observe the progress bar and blocks justify/finalize. |
+| 1. Committee formation | Yes | Pool size configurable in LOBBY. Multiple committees per epoch. | All students who join are in the pool; committees form at epoch start. Check **How committees form** and **Committees for Epoch N**. |
+| 2. Justification threshold | Yes | — | All students observe the progress bar and blocks justify/finalize. |
 | 3. Practice attestation | Yes | Check **Require human attestation per block** when starting. | Blocks will not justify until at least one human has attested. |
 | 4. See finality in action | Yes | — | All students observe block N finalizing when N+2 is justified. |
 | 5. Experience slashing | Partial | Only 1–2 students can *trigger* slashing (wrong attest or double vote). Others observe. | Rotate who does the demo across sessions, or run the lab twice. Emphasize that observing a slash (block detail, Slashed Validators panel) still meets "experience" for understanding. |
 | 6. Weighted proposer selection | Yes | — | All students observe who proposed each block; over several blocks the stake-weighted pattern is visible. |
 
 **Checklist before starting:**
-- [ ] Pool size (default 128) ≥ number of students
+- [ ] Pool size (set validators per committee in LOBBY) ≥ number of students
 - [ ] All students have joined before Fill Bots and Start
 - [ ] Consider checking **Require human attestation per block** for practice
 - [ ] Plan: who will demo wrong-hash slash; who will demo double-vote (if doing both)
@@ -287,11 +297,11 @@ When finished, click **End Session** to freeze the lab.
 | Parameter | Value |
 |-----------|-------|
 | Min stake | 32 ETH (like mainnet) |
-| Committees per epoch | 8 (configurable via `COMMITTEES_PER_EPOCH`) |
-| Validators per committee | 16 (configurable via `VALIDATORS_PER_COMMITTEE`) |
-| Pool size | committeesPerEpoch * validatorsPerCommittee (default 128) |
+| Committees per epoch | 8 (configurable via `COMMITTEES_PER_EPOCH` at deploy) |
+| Validators per committee | 8 (configurable in LOBBY via Instructor Controls, or `VALIDATORS_PER_COMMITTEE` at deploy) |
+| Pool size | committeesPerEpoch × validatorsPerCommittee (default 64; set in LOBBY before Fill Bots and Start) |
 | Blocks per epoch | 4 |
-| Quorum | 2/3 of total staked |
+| Justification threshold | 2/3 of total staked |
 | Slash penalty | 5% |
 | Whistleblower reward | 10% of penalty |
 | Block reward | 0.01 ETH |
@@ -301,6 +311,7 @@ When finished, click **End Session** to freeze the lab.
 
 ## Troubleshooting
 
+- **"Transaction ran out of gas"** — Set validators per committee to a smaller value (e.g. 3–8) in LOBBY before Fill Bots and Start. Smaller pool = less gas. Or redeploy with `COMMITTEES_PER_EPOCH=8 VALIDATORS_PER_COMMITTEE=8`.
 - **"Beacon Chain Lab not deployed"** — Run `npm run deploy:beacon-lab` with the chain running
 - **"Config missing or no bot addresses"** — Deploy script writes bot addresses to config; ensure deploy completed
 - **Students can't connect** — Share instructor IP and ensure RPC is accessible (e.g., `http://<IP>:8545`)

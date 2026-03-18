@@ -53,7 +53,6 @@ RUN npm ci --ignore-scripts && npm rebuild node-pty
 # Copy blockchain contracts and scripts
 COPY contracts/ ./contracts/
 COPY scripts/ ./scripts/
-COPY indexer/ ./indexer/
 COPY server/ ./server/
 COPY hardhat.config.js ./
 
@@ -81,8 +80,8 @@ ENV FRONTEND_PORT=5173
 ENV CONTRACT_ADDRESS=""
 ENV INSTRUCTOR_RPC_URL=""
 
-# Expose ports (8545=RPC, 5173=frontend, 3001=indexer, 3002-3004=Lab Terminal)
-EXPOSE 8545 5173 3001 3002 3003 3004
+# Expose ports (8545=RPC, 5173=frontend, 3002-3004=Lab Terminal)
+EXPOSE 8545 5173 3002 3003 3004
 
 # Health check - checks frontend availability
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

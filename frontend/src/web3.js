@@ -1,4 +1,5 @@
 import { ethers } from "ethers";
+import { resolveRpcUrl } from "./lib/RpcClient";
 
 const LOCAL_NODE_URL = "http://127.0.0.1:8545";
 
@@ -236,7 +237,7 @@ export const getWalletInfo = () => {
 // Helper to check if local node is alive
 export const checkNodeStatus = async (customUrl = null) => {
     const targetProvider = customUrl 
-        ? new ethers.JsonRpcProvider(customUrl) 
+        ? new ethers.JsonRpcProvider(resolveRpcUrl(customUrl)) 
         : provider;
     
     try {

@@ -33,7 +33,6 @@ student-accounts.json
 cache
 *.log
 npm-debug.log
-indexer/game.db
 
 # OS files
 .DS_Store

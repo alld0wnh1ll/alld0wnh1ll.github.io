@@ -12,6 +12,20 @@
 
 import { ethers } from 'ethers';
 
+/**
+ * Resolve RPC URL to a full URL. Relative paths like /rpc-proxy must be
+ * converted to same-origin URLs for ethers.JsonRpcProvider (which requires
+ * http/https protocol).
+ */
+export function resolveRpcUrl(url) {
+  const sanitized = (url || '').trim();
+  if (!sanitized) return sanitized;
+  if (sanitized.startsWith('/')) {
+    return (typeof window !== 'undefined' ? window.location.origin : '') + sanitized;
+  }
+  return sanitized;
+}
+
 // Account 0 = deployer = bank/faucet (Hardhat's first test account).
 // Same address deploys the PoS contract and sends test ETH to students.
 const BANK_PRIVATE_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
@@ -44,7 +58,8 @@ class RpcClient {
     
     try {
       this.rpcUrl = sanitized;
-      this.provider = new ethers.JsonRpcProvider(sanitized);
+      const resolved = resolveRpcUrl(sanitized);
+      this.provider = new ethers.JsonRpcProvider(resolved);
       this.bankSigner = new ethers.Wallet(BANK_PRIVATE_KEY, this.provider);
       return true;
     } catch (e) {

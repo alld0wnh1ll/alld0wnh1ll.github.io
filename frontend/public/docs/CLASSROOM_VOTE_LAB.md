@@ -73,6 +73,7 @@ The instructor poses a question to the class (e.g., lunch policy, project topic,
 
 ---
 
+<!-- INSTRUCTOR_ONLY -->
 ## Docker Setup
 
 If running via Docker, follow these instructions.
@@ -112,8 +113,6 @@ npx hardhat console --network localhost
 - The blockchain starts fresh each time you rebuild
 - Share your IP address with students (not `localhost`) so they can access the dashboard
 - Students can access the web interface at `http://<YOUR-IP>:5173`
-
----
 
 ## Part A: Instructor Setup
 
@@ -188,8 +187,6 @@ Write on the board or share in chat:
 ╚═══════════════════════════════════════════════════════════════╝
 ```
 
----
-
 ## Part B: Opening Voting (Instructor)
 
 Voting is closed by default. The instructor must open it.
@@ -215,6 +212,7 @@ console.log('Voting opened!')
 ```
 
 The dashboard will update to show "VOTING OPEN" status.
+<!-- /INSTRUCTOR_ONLY -->
 
 ---
 
@@ -292,6 +290,7 @@ console.log("Voting Open:", results[6]);
 
 ---
 
+<!-- INSTRUCTOR_ONLY -->
 ## Part E: Closing Voting and Announcing Winner (Instructor)
 
 When voting is complete, close it and announce results.
@@ -313,6 +312,7 @@ console.log("Total voters:", results[5].toString());
 console.log("WINNER:", winner);
 console.log("===================================\n");
 ```
+<!-- /INSTRUCTOR_ONLY -->
 
 ---
 

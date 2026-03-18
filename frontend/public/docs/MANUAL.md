@@ -216,6 +216,8 @@ This page is optional for normal “use the smart contract in the Live tab” st
 | **Request funds / Get 5 ETH does nothing** | Instructor’s node must be running; ask them to check. Use **Request funds** to notify them. |
 | **Can’t see classmates** | Others must be on the same RPC and contract; they may need to stake or interact once to appear. |
 
+| **Lab Terminal won't connect** | The instructor must run the terminal server (`npm run terminal` or Docker). If you're the instructor on Windows and it fails, use Docker for instructor mode (see project README). |
+
 For more technical details (RPC, CORS, deployment), see [RPC_CONNECTION_TECHNICAL.md](RPC_CONNECTION_TECHNICAL.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---

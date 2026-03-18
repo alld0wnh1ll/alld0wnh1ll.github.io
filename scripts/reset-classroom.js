@@ -2,7 +2,7 @@
 /**
  * Full Classroom Reset
  *
- * Clears blockchain data and indexer so you can deploy a fresh node for a new class.
+ * Clears blockchain data so you can deploy a fresh node for a new class.
  *
  * LOCAL: Run this, then close the blockchain node window and run start-lab again.
  * DOCKER: Use "npm run reset:docker" instead (stops containers and removes volumes).
@@ -15,7 +15,6 @@ const ROOT = path.join(__dirname, "..");
 
 const targets = [
   { path: path.join(ROOT, ".hardhat"), name: "Blockchain data (.hardhat)" },
-  { path: path.join(ROOT, "indexer", "game.db"), name: "Chain City indexer (game.db)" },
   { path: path.join(ROOT, "cache", "solidity-files-cache.json"), name: "Solidity cache" },
 ];
 

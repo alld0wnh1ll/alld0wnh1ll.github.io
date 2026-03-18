@@ -6,7 +6,6 @@
   "scripts": {
     "chain": "hardhat node --hostname 0.0.0.0",
     "deploy": "hardhat run scripts/deploy.js --network localhost",
-    "deploy:game": "npx hardhat run scripts/deploy-game.js --network localhost",
     "deploy:beacon-lab": "npx hardhat run scripts/deploy-beacon-lab.js --network localhost",
     "beacon-lab": "node scripts/start-beacon-lab.js",
     "web": "cd frontend && npm run dev -- --host",
@@ -23,15 +22,12 @@
     "lab3": "hardhat run scripts/cli-labs/3-deploy-contract.js --network localhost",
     "lab4": "hardhat run scripts/cli-labs/4-query-data.js --network localhost",
     "lab5": "hardhat run scripts/cli-labs/5-validator-simulation.js --network localhost",
-    "indexer": "node indexer/index.js",
     "terminal": "node server/terminal-server.js",
     "lab-api": "node server/lab-api.js",
     "console": "hardhat console --network localhost",
     "prepare-classroom": "node scripts/prepare-classroom.js",
     "reset": "node scripts/reset-classroom.js",
     "reset:docker": "docker compose down -v && docker compose up --build",
-    "indexer:reset": "node -e \"const fs=require('fs'); const p='indexer/game.db'; if(fs.existsSync(p)) fs.unlinkSync(p);\" && node indexer/index.js",
-    "bots": "npx hardhat run scripts/chain-city-bots.js --network localhost",
     "simulate": "node scripts/simulate-16-players.js",
     "simulate:epoch": "node scripts/simulate-epoch-actions.js"
   },
@@ -45,7 +41,6 @@
   },
   "dependencies": {
     "@openzeppelin/contracts": "^4.9.6",
-    "better-sqlite3": "^12.6.2",
     "express": "^5.2.1",
     "node-pty": "^1.1.0",
     "ws": "^8.19.0"

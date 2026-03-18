@@ -17,7 +17,8 @@ const tokens = [
   { name: 'LabNFT', artifact: 'LabNFT.sol/LabNFT.json' },
   { name: 'LabNFTSale', artifact: 'LabNFTSale.sol/LabNFTSale.json' },
   { name: 'SimpleStorage', artifact: 'SimpleStorage.sol/SimpleStorage.json' },
-  { name: 'CarSale', artifact: 'student/CarSale_000001.sol/CarSale.json' }
+  { name: 'CarSale', artifact: 'student/CarSale_000001.sol/CarSale.json' },
+  { name: 'ClassVote', artifact: 'ClassVote.sol/ClassVote.json' }
 ];
 
 for (const { name, artifact } of tokens) {

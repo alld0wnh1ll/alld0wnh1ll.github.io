@@ -108,6 +108,7 @@ Before starting this lab:
 
 ---
 
+<!-- INSTRUCTOR_ONLY -->
 ## Docker Setup
 
 If running via Docker, follow these instructions instead of the local setup.
@@ -192,6 +193,7 @@ Tell students:
 - The victim's address (from `forensics-case.json`)
 - The starting block number
 - That they need TWO terminals open
+<!-- /INSTRUCTOR_ONLY -->
 
 ---
 

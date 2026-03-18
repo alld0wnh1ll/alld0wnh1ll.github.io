@@ -31,9 +31,6 @@ cleanup() {
     if [ ! -z "$HARDHAT_PID" ]; then
         kill $HARDHAT_PID 2>/dev/null || true
     fi
-    if [ ! -z "$INDEXER_PID" ]; then
-        kill $INDEXER_PID 2>/dev/null || true
-    fi
     if [ ! -z "$TERMINAL_PID" ]; then
         kill $TERMINAL_PID 2>/dev/null || true
     fi
@@ -95,19 +92,6 @@ if [ "$MODE" = "instructor" ]; then
         exit 1
     fi
     
-    # Deploy Chain City (game contracts)
-    echo ""
-    echo -e "${BLUE}🎮 Deploying Chain City (game contracts)...${NC}"
-    if npx hardhat run scripts/deploy-game.js --network localhost; then
-        echo -e "   ${GREEN}✓ Chain City deployed${NC}"
-        if [ -f "/app/frontend/public/game-config.json" ]; then
-            cp /app/frontend/public/game-config.json /app/frontend/dist/game-config.json
-            echo -e "   ${GREEN}✓ game-config.json copied to frontend${NC}"
-        fi
-    else
-        echo -e "   ${YELLOW}⚠ Chain City deployment failed (game features may not work)${NC}"
-    fi
-    
     # Deploy Beacon Chain Lab (optional, set DEPLOY_BEACON_LAB=1 to enable)
     if [ "${DEPLOY_BEACON_LAB}" = "1" ]; then
         echo ""
@@ -122,18 +106,6 @@ if [ "$MODE" = "instructor" ]; then
             echo -e "   ${YELLOW}⚠ Beacon Chain Lab deployment failed${NC}"
         fi
     fi
-    
-    # Start Chain City indexer in background
-    echo ""
-    echo -e "${BLUE}📊 Starting Chain City indexer (port 3001)...${NC}"
-    if [ -f "/app/frontend/public/game-config.json" ] || [ -f "/app/frontend/dist/game-config.json" ]; then
-        RPC_URL="http://localhost:$RPC_PORT" node indexer/index.js &
-        INDEXER_PID=$!
-        sleep 2
-        echo -e "   ${GREEN}✓ Indexer running${NC}"
-    else
-        echo -e "   ${YELLOW}⚠ Skipping indexer (no game-config.json)${NC}"
-    fi
 
     # Start Lab Terminal (PTY) in background (listens on TERMINAL_PORTS or 3002)
     echo ""
@@ -144,6 +116,11 @@ if [ "$MODE" = "instructor" ]; then
     echo -e "   ${GREEN}✓ Lab Terminal running${NC}"
     
     # Read and export contract address
+    BEACON_LAB_ADDRESS=""
+    if [ -f "/app/frontend/public/beacon-lab-config.json" ]; then
+        BEACON_LAB_ADDRESS=$(node -e "try{console.log(require('/app/frontend/public/beacon-lab-config.json').contractAddress||'')}catch(e){console.log('')}" 2>/dev/null || echo "")
+    fi
+
     if [ -f "CONTRACT_ADDRESS.txt" ]; then
         CONTRACT_ADDRESS=$(head -1 CONTRACT_ADDRESS.txt | tr -d '\r\n')
         export CONTRACT_ADDRESS
@@ -155,6 +132,17 @@ if [ "$MODE" = "instructor" ]; then
         CONTAINER_IP=$(hostname -i 2>/dev/null || echo "localhost")
         
         # Create config JSON (use /rpc-proxy for same-origin, avoids CORS in Docker)
+        if [ -n "$BEACON_LAB_ADDRESS" ]; then
+        cat > /app/frontend/dist/api/config.json << EOF
+{
+  "contractAddress": "$CONTRACT_ADDRESS",
+  "rpcUrl": "/rpc-proxy",
+  "mode": "instructor",
+  "startTime": "$(date -Iseconds)",
+  "beaconLabContractAddress": "$BEACON_LAB_ADDRESS"
+}
+EOF
+        else
         cat > /app/frontend/dist/api/config.json << EOF
 {
   "contractAddress": "$CONTRACT_ADDRESS",
@@ -163,6 +151,7 @@ if [ "$MODE" = "instructor" ]; then
   "startTime": "$(date -Iseconds)"
 }
 EOF
+        fi
         echo "$CONTRACT_ADDRESS" > /app/frontend/dist/contract-address.txt
         
         echo -e "   ${GREEN}✓ Contract deployed!${NC}"
@@ -204,7 +193,6 @@ EOF
     echo "║       - Frontend: http://<YOUR-IP>:$FRONTEND_PORT                       ║"
     echo "║       - RPC URL:  http://<YOUR-IP>:$RPC_PORT                        ║"
     echo "║       - Contract: $CONTRACT_ADDRESS            ║"
-    echo "║    3. Chain City: Live view -> Chain City button               ║"
     echo "║                                                                ║"
     echo "║  📄 Auto-config endpoints:                                     ║"
     echo "║    http://localhost:$FRONTEND_PORT/contract-address.txt             ║"
@@ -257,9 +245,9 @@ elif [ "$MODE" = "student" ]; then
 }
 EOF
     
-    # Start frontend server
+    # Start frontend server (includes Lab Terminal WebSocket proxy at /ws/terminal)
     echo -e "${BLUE}🌐 Starting frontend server...${NC}"
-    serve -s /app/frontend/dist -l $FRONTEND_PORT &
+    FRONTEND_PORT=$FRONTEND_PORT node /app/server/frontend-server.js &
     FRONTEND_PID=$!
     
     sleep 2

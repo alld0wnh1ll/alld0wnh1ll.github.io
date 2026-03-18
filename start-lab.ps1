@@ -18,7 +18,7 @@ param(
 )
 
 # ============================================================================
-# RESET MODE - Full classroom reset (clear blockchain + indexer, then optionally start instructor)
+# RESET MODE - Full classroom reset (clear blockchain, then optionally start instructor)
 # ============================================================================
 function Start-ResetMode {
     param([switch]$Quiet = $false)
@@ -54,7 +54,7 @@ function Start-ResetMode {
 
     # Run reset script
     Write-Host ""
-    Write-Host "[2/2] Clearing blockchain data and indexer..." -ForegroundColor Green
+    Write-Host "[2/2] Clearing blockchain data..." -ForegroundColor Green
     npm run reset
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Reset script reported an issue." -ForegroundColor Yellow
@@ -205,19 +205,9 @@ function Start-InstructorMode {
         Write-Host "Could not extract contract address. Check deployment output above." -ForegroundColor Red
     }
 
-    # 3. Deploy Chain City (game contracts)
+    # 3. Deploy Beacon Chain Lab
     Write-Host ""
-    Write-Host "[3/7] Deploying Chain City (game contracts)..." -ForegroundColor Green
-    npm run deploy:game
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Chain City deployment failed. Game features may not work. Continuing..." -ForegroundColor Yellow
-    } else {
-        Write-Host "Chain City deployed. game-config.json created." -ForegroundColor Green
-    }
-
-    # 3b. Deploy Beacon Chain Lab
-    Write-Host ""
-    Write-Host "[3b/7] Deploying Beacon Chain Lab..." -ForegroundColor Green
+    Write-Host "[3/6] Deploying Beacon Chain Lab..." -ForegroundColor Green
     npm run deploy:beacon-lab
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Beacon Chain Lab deployment failed. Continuing..." -ForegroundColor Yellow
@@ -227,7 +217,7 @@ function Start-InstructorMode {
 
     # 4. Start Lab API (session, fund requests, wallet tracking) in a new window
     Write-Host ""
-    Write-Host "[4/8] Starting Lab API (port 3000)..." -ForegroundColor Green
+    Write-Host "[4/7] Starting Lab API (port 3000)..." -ForegroundColor Green
     $labApiEnv = "INSTRUCTOR_IP=127.0.0.1,::1,$ipAddr"
     Start-Process powershell -ArgumentList "-NoExit", "-Command", `
         "`$env:INSTRUCTOR_IP='127.0.0.1,::1,$ipAddr'; Write-Host 'LAB API' -ForegroundColor Cyan; Write-Host 'Session, fund requests: http://localhost:3000' -ForegroundColor Gray; Set-Location '$labDir'; npm run lab-api" -WorkingDirectory $labDir
@@ -235,33 +225,12 @@ function Start-InstructorMode {
 
     # 5. Start Lab Terminal (PTY) in a new window
     Write-Host ""
-    Write-Host "[5/8] Starting Lab Terminal (port 3002)..." -ForegroundColor Green
+    Write-Host "[5/7] Starting Lab Terminal (port 3002)..." -ForegroundColor Green
     Start-Process powershell -ArgumentList "-NoExit", "-Command", `
         "Write-Host 'LAB TERMINAL (PTY)' -ForegroundColor Cyan; Write-Host 'WebSocket: ws://localhost:3002' -ForegroundColor Gray; Set-Location '$labDir'; npm run terminal" -WorkingDirectory $labDir
     Start-Sleep -Seconds 2
 
-    # 6. Start Chain City indexer in a new window
-    Write-Host ""
-    Write-Host "[6/8] Starting Chain City indexer (port 3001)..." -ForegroundColor Green
-    if (-not (Test-Path "frontend\public\game-config.json")) {
-        Write-Host "WARNING: game-config.json not found. Indexer requires deploy:game. Continuing anyway..." -ForegroundColor Yellow
-    }
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", `
-        "Write-Host 'CHAIN CITY INDEXER' -ForegroundColor Cyan; Write-Host 'Listening on http://localhost:3001' -ForegroundColor Gray; Set-Location '$labDir'; npm run indexer" -WorkingDirectory $labDir
-    Start-Sleep -Seconds 3
-    # Verify indexer is reachable
-    $indexerReady = $false
-    try {
-        $health = Invoke-WebRequest -Uri "http://localhost:3001/api/health" -TimeoutSec 2 -ErrorAction Stop
-        if ($health.StatusCode -eq 200) {
-            $indexerReady = $true
-            Write-Host "Indexer is ready." -ForegroundColor Green
-        }
-    } catch {
-        Write-Host "Indexer may not be ready yet. If you see 'Indexer not reachable' in the app, open a new terminal and run: npm run indexer" -ForegroundColor Yellow
-    }
-
-    # 7. Start ngrok if requested
+    # 6. Start ngrok if requested
     $rpcUrl = "http://$($ipAddr):8545"
     if ($UseNgrok) {
         if ($hasNgrok) {
@@ -272,9 +241,9 @@ function Start-InstructorMode {
             Start-Sleep -Seconds 3
             Write-Host "Open the ngrok window to view the HTTPS URL for students." -ForegroundColor Yellow
             $rpcUrl = "<See ngrok window for HTTPS URL>"
-    } else {
-        Write-Host ""
-        Write-Host "[7/8] Ngrok not found. Students will use your local IP for RPC." -ForegroundColor Yellow
+        } else {
+            Write-Host ""
+            Write-Host "[6/7] Ngrok not found. Students will use your local IP for RPC." -ForegroundColor Yellow
             Write-Host "TIP: Install ngrok from https://ngrok.com/download for remote students" -ForegroundColor Cyan
         }
     } else {
@@ -326,9 +295,7 @@ function Start-InstructorMode {
     Write-Host "  CONTRACT_ADDRESS.txt  - Contract address only" -ForegroundColor Gray
     Write-Host "  deployment.json       - Full deployment details" -ForegroundColor Gray
     Write-Host "  instructor-config.json - Instructor configuration" -ForegroundColor Gray
-    Write-Host "  game-config.json       - Chain City (frontend/public)" -ForegroundColor Gray
     Write-Host ""
-    Write-Host "Chain City: Live view -> Chain City button (Instructor/Student)" -ForegroundColor Cyan
     Write-Host "Beacon Chain Lab: Sidebar -> Beacon Chain Lab (or ?view=beacon-lab)" -ForegroundColor Cyan
     Write-Host "Lab Terminal: Live view -> Lab Terminal button (CLI, Contract Builder)" -ForegroundColor Cyan
     Write-Host "==================================================" -ForegroundColor Yellow

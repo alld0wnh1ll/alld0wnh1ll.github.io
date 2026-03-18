@@ -555,7 +555,7 @@ function blockToRecord(block) {
   };
 }
 
-export function Blockchain3DView({ provider, rpcUrl, l2Provider, demoL2: demoL2Prop = false }) {
+export function Blockchain3DView({ provider, rpcUrl, l2Provider, demoL2: demoL2Prop = false, l2Mode = false, showL2Info = false }) {
   const [blocks, setBlocks] = useState([]);
   const [unclesMap, setUnclesMap] = useState(new Map());
   const [loading, setLoading] = useState(true);
@@ -1096,10 +1096,27 @@ export function Blockchain3DView({ provider, rpcUrl, l2Provider, demoL2: demoL2P
           <span style={{ color: '#22ff88' }}>●</span> Finalized · <span style={{ color: '#fbbf24' }}>●</span> Attesting
           <div style={{ marginTop: '0.25rem', fontSize: '0.7rem' }}>Newest blocks are still being attested and are not yet finalized.</div>
         </div>
-        {!l2Provider && (
+        {!l2Provider && !l2Mode && (
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', cursor: 'pointer', fontSize: '0.85rem' }}>
             <input type="checkbox" checked={demoL2} onChange={(e) => setDemoL2(e.target.checked)} /> Demo L2
           </label>
+        )}
+
+        {showL2Info && (
+          <details style={{ marginBottom: '1rem', fontSize: '0.85rem' }}>
+            <summary style={{ cursor: 'pointer', color: '#00ffcc', fontWeight: 600 }}>What is Layer 2?</summary>
+            <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'rgba(0,255,204,0.08)', borderRadius: '0.5rem', border: '1px solid rgba(0,255,204,0.25)', color: '#94a3b8', lineHeight: 1.6 }}>
+              <p style={{ margin: '0 0 0.5rem 0' }}>
+                Layer 2 executes transactions off the main chain (L1), then posts data or proofs to L1. This inherits L1 security while scaling throughput.
+              </p>
+              <p style={{ margin: '0 0 0.5rem 0' }}>
+                <strong style={{ color: '#e2e8f0' }}>Rollups</strong> batch many L2 transactions and post compressed data to L1. <strong style={{ color: '#e2e8f0' }}>Optimistic</strong> rollups use fraud proofs; <strong style={{ color: '#e2e8f0' }}>ZK</strong> rollups use validity proofs.
+              </p>
+              <p style={{ margin: 0 }}>
+                You&apos;re viewing L1 (green) and L2 (cyan) blocks side by side — two chains, one security base.
+              </p>
+            </div>
+          </details>
         )}
 
         {contractData && (
